@@ -39,15 +39,15 @@ export async function fetchAllStops() {
 
         const response = await fetch(`${BASE_URL}/stop`);
         if (!response.ok) throw new Error('Network response was not ok');
-        
+
         const data = await response.json();
-        
+
         // Update cache
         cache.stops = {
             data: data.data,
             timestamp: Date.now()
         };
-        
+
         return data.data;
     } catch (error) {
         handleApiError(error, 'stops');
@@ -67,7 +67,7 @@ export async function batchFetchStopETAs(stopIds) {
         });
 
         // Fetch new data in parallel
-        const promises = stopsToFetch.map(stopId => 
+        const promises = stopsToFetch.map(stopId =>
             fetch(`${BASE_URL}/stop-eta/${stopId}`)
                 .then(response => response.json())
                 .then(data => ({ stopId, data: data.data }))
@@ -98,9 +98,9 @@ export async function batchFetchStopETAs(stopIds) {
 export async function fetchRouteInfo(route, direction = 'outbound', serviceType = 1) {
     try {
         const cacheKey = `${route}-${direction}-${serviceType}`;
-        
+
         // Check cache
-        if (cache.routes.data[cacheKey] && 
+        if (cache.routes.data[cacheKey] &&
             isCacheValid(cache.routes.timestamp[cacheKey], CACHE_DURATION.ROUTES)) {
             return cache.routes.data[cacheKey];
         }
@@ -109,13 +109,13 @@ export async function fetchRouteInfo(route, direction = 'outbound', serviceType 
             `${BASE_URL}/route/${route}/${direction}/${serviceType}`
         );
         if (!response.ok) throw new Error('Network response was not ok');
-        
+
         const data = await response.json();
-        
+
         // Update cache
         cache.routes.data[cacheKey] = data.data;
         cache.routes.timestamp[cacheKey] = Date.now();
-        
+
         return data.data;
     } catch (error) {
         handleApiError(error, 'route-info');
@@ -128,9 +128,9 @@ export async function fetchRouteInfo(route, direction = 'outbound', serviceType 
 export async function fetchRouteETA(route, serviceType = 1) {
     try {
         const cacheKey = `${route}-${serviceType}`;
-        
+
         // Check cache
-        if (cache.eta.data[cacheKey] && 
+        if (cache.eta.data[cacheKey] &&
             isCacheValid(cache.eta.timestamp[cacheKey], CACHE_DURATION.ETA)) {
             return cache.eta.data[cacheKey];
         }
@@ -139,13 +139,13 @@ export async function fetchRouteETA(route, serviceType = 1) {
             `${BASE_URL}/route-eta/${route}/${serviceType}`
         );
         if (!response.ok) throw new Error('Network response was not ok');
-        
+
         const data = await response.json();
-        
+
         // Update cache
         cache.eta.data[cacheKey] = data.data;
         cache.eta.timestamp[cacheKey] = Date.now();
-        
+
         return data.data;
     } catch (error) {
         handleApiError(error, 'route-eta');
@@ -158,9 +158,9 @@ export async function fetchRouteETA(route, serviceType = 1) {
 export async function fetchRouteStops(route, direction = 'outbound', serviceType = 1) {
     try {
         const cacheKey = `${route}-${direction}-${serviceType}-stops`;
-        
+
         // Check cache
-        if (cache.routes.data[cacheKey] && 
+        if (cache.routes.data[cacheKey] &&
             isCacheValid(cache.routes.timestamp[cacheKey], CACHE_DURATION.ROUTES)) {
             return cache.routes.data[cacheKey];
         }
@@ -169,13 +169,13 @@ export async function fetchRouteStops(route, direction = 'outbound', serviceType
             `${BASE_URL}/route-stop/${route}/${direction}/${serviceType}`
         );
         if (!response.ok) throw new Error('Network response was not ok');
-        
+
         const data = await response.json();
-        
+
         // Update cache
         cache.routes.data[cacheKey] = data.data;
         cache.routes.timestamp[cacheKey] = Date.now();
-        
+
         return data.data;
     } catch (error) {
         handleApiError(error, 'route-stops');
@@ -188,20 +188,20 @@ export async function fetchRouteStops(route, direction = 'outbound', serviceType
 export async function fetchNearbyStops(stopId) {
     try {
         // For single stop ETAs, we'll use a shorter cache duration
-        if (cache.eta.data[stopId] && 
+        if (cache.eta.data[stopId] &&
             isCacheValid(cache.eta.timestamp[stopId], CACHE_DURATION.ETA)) {
             return cache.eta.data[stopId];
         }
 
         const response = await fetch(`${BASE_URL}/stop-eta/${stopId}`);
         if (!response.ok) throw new Error('Network response was not ok');
-        
+
         const data = await response.json();
-        
+
         // Update cache
         cache.eta.data[stopId] = data.data;
         cache.eta.timestamp[stopId] = Date.now();
-        
+
         return data.data;
     } catch (error) {
         handleApiError(error, 'stop-eta');

@@ -43,7 +43,7 @@ function AppContent() {
     const [selectedStopId, setSelectedStopId] = useState(null);
     const listRef = useRef(null);
 
-    const { location, loading: locationLoading, errorMsg } = useLocation();
+    const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
 
     const [allRoutes, setAllRoutes] = useState([]);
 
@@ -411,9 +411,18 @@ function AppContent() {
         }
     };
 
-    const refreshNearbyStops = () => {
-        if (location) {
-            fetchNearbyStops(location.coords);
+    const refreshNearbyStops = async () => {
+        try {
+            // Get fresh location first
+            const freshLocation = await refreshLocation();
+
+            // If we got a new location, fetch nearby stops
+            if (freshLocation) {
+                await fetchNearbyStops(freshLocation.coords);
+            }
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+            Alert.alert('Error', 'Failed to refresh nearby stops');
         }
     };
 

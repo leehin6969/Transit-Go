@@ -468,7 +468,7 @@ export const styles = StyleSheet.create({
     nearbyStopContent: {
         flex: 1,
     },
-    
+
     mapContainer: {
         overflow: 'hidden',
         borderTopWidth: 1,
@@ -476,12 +476,12 @@ export const styles = StyleSheet.create({
         marginTop: 8,
         width: '100%',
     },
-    
+
     map: {
         width: '100%',
         height: '100%',
     },
-    
+
     busStopMarker: {
         backgroundColor: '#ffffff',
         borderRadius: 20,
@@ -494,16 +494,52 @@ export const styles = StyleSheet.create({
         shadowRadius: 3.84,
         elevation: 5,
     },
-    
+
     expandButton: {
         alignSelf: 'center',
         padding: 4,
         marginTop: 4,
     },
-    
+
     expandButtonActive: {
         backgroundColor: '#f0f0f0',
         borderRadius: 12,
+    },
+    offlineBanner: {
+        backgroundColor: '#ff9800',
+        padding: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    offlineText: {
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 16,
+        backgroundColor: '#ffffff',
+    },
+    errorTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#dc2626',
+        marginBottom: 8,
+    },
+    errorMessage: {
+        fontSize: 16,
+        color: '#666666',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    retryButton: {
+        backgroundColor: '#0066cc',
+        paddingHorizontal: 16,
     }
-    
+
 });

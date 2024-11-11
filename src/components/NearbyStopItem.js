@@ -21,7 +21,7 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
     const toggleExpand = () => {
         const toValue = isExpanded ? 0 : 200;
         setIsExpanded(!isExpanded);
-        
+
         Animated.timing(mapHeight, {
             toValue,
             duration: 300,
@@ -48,8 +48,8 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
     };
 
     const updatedRoutes = routes?.map(route => {
-        const latestEta = etaData?.find(eta => 
-            eta.route === route.route && 
+        const latestEta = etaData?.find(eta =>
+            eta.route === route.route &&
             eta.dir === (route.bound === 'O' ? 'outbound' : 'inbound')
         );
         return latestEta ? { ...route, eta: latestEta.eta } : route;
@@ -57,17 +57,17 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
 
     const renderMap = () => {
         if (!isExpanded || !item.lat || !item.long) return null;
-    
+
         const stopLocation = {
             latitude: parseFloat(item.lat),
             longitude: parseFloat(item.long),
         };
-    
+
         const userLocation = location?.coords ? {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
         } : null;
-    
+
         // Calculate region to show both markers
         const region = {
             latitude: stopLocation.latitude,
@@ -75,20 +75,20 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
             latitudeDelta: 0.0001,  // Adjusted zoom level
             longitudeDelta: 0.0001, // Adjusted zoom level
         };
-    
+
         if (userLocation) {
             const latDiff = Math.abs(stopLocation.latitude - userLocation.latitude);
             const lonDiff = Math.abs(stopLocation.longitude - userLocation.longitude);
-    
+
             if (latDiff > region.latitudeDelta || lonDiff > region.longitudeDelta) {
                 // If user is outside the initial zoom area, adjust the region to fit both locations
                 region.latitude = (stopLocation.latitude + userLocation.latitude) / 2;
                 region.longitude = (stopLocation.longitude + userLocation.longitude) / 2;
-                region.latitudeDelta = Math.max(latDiff * 2.5, 0.001);
-                region.longitudeDelta = Math.max(lonDiff * 2.5, 0.001);
+                region.latitudeDelta = Math.max(latDiff * 2.5, 0.000050);
+                region.longitudeDelta = Math.max(lonDiff * 2.5, 0.00050);
             }
         }
-    
+
         return (
             <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
                 <MapView
@@ -113,7 +113,7 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
 
     return (
         <View style={styles.nearbyStopItem}>
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={styles.nearbyStopContent}
                 onPress={toggleExpand}
                 activeOpacity={0.7}
@@ -127,9 +127,9 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
                     </Text>
                 </View>
 
-                <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false} 
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
                     style={styles.routesScroll}
                     onTouchStart={e => e.stopPropagation()}
                 >
@@ -162,17 +162,17 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
 
             {renderMap()}
 
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={[
                     styles.expandButton,
                     isExpanded && styles.expandButtonActive
                 ]}
                 onPress={toggleExpand}
             >
-                <MaterialIcons 
-                    name={isExpanded ? "expand-less" : "expand-more"} 
-                    size={24} 
-                    color="#666666" 
+                <MaterialIcons
+                    name={isExpanded ? "expand-less" : "expand-more"}
+                    size={24}
+                    color="#666666"
                 />
             </TouchableOpacity>
         </View>

@@ -5,13 +5,13 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { styles } from '../styles/styles';
 import { useLanguage } from './Header';
 
-export default function RouteHeader({ 
+export default function RouteHeader({
     routeInfo,
     routeDetails,
-    routeDirection, 
+    routeDirection,
     onToggle,
     isCircular,
-    disabled 
+    disabled
 }) {
     const { getLocalizedText } = useLanguage();
     const currentRouteInfo = routeDetails[routeDirection];
@@ -28,10 +28,10 @@ export default function RouteHeader({
                             sc: currentRouteInfo?.orig_sc
                         })}
                     </Text>
-                    <MaterialIcons 
-                        name="loop" 
-                        size={20} 
-                        color="#666666" 
+                    <MaterialIcons
+                        name="loop"
+                        size={20}
+                        color="#666666"
                         style={styles.directionArrow}
                     />
                     <Text style={styles.routeTerminal}>
@@ -50,10 +50,10 @@ export default function RouteHeader({
                         sc: currentRouteInfo?.orig_sc
                     })}
                 </Text>
-                <MaterialIcons 
-                    name="arrow-forward" 
-                    size={20} 
-                    color="#666666" 
+                <MaterialIcons
+                    name="arrow-forward"
+                    size={20}
+                    color="#666666"
                     style={styles.directionArrow}
                 />
                 <Text style={styles.routeTerminal}>
@@ -73,7 +73,7 @@ export default function RouteHeader({
                 <Text style={styles.routeNumber}>{routeInfo.route}</Text>
                 {renderRouteDescription()}
                 {!isCircular && (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[
                             styles.toggleIcon,
                             disabled && styles.toggleIconDisabled
@@ -81,9 +81,9 @@ export default function RouteHeader({
                         onPress={onToggle}
                         disabled={disabled}
                     >
-                        <MaterialIcons 
-                            name="swap-horiz" 
-                            size={24} 
+                        <MaterialIcons
+                            name="swap-horiz"
+                            size={24}
                             color="#0066cc"
                         />
                     </TouchableOpacity>
