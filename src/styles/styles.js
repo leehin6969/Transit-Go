@@ -6,30 +6,42 @@ export const styles = StyleSheet.create({
         backgroundColor: '#f5f5f5',
     },
     header: {
-        padding: 16,
         backgroundColor: '#ffffff',
         borderBottomWidth: 1,
         borderBottomColor: '#e0e0e0',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        paddingTop: 8,
     },
     languageButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
         backgroundColor: '#f0f7ff',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
     },
     languageButtonText: {
         color: '#0066cc',
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '500',
     },
+    headerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    searchTypeButtons: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 2,
+    },
     title: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
         color: '#333333',
     },
@@ -41,16 +53,16 @@ export const styles = StyleSheet.create({
         borderBottomColor: '#e0e0e0',
     },
     searchTypeButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 12,
-        gap: 8,
-        borderRadius: 8,
+        padding: 6,
+        borderRadius: 6,
     },
     searchTypeButtonActive: {
-        backgroundColor: '#f0f7ff',
+        backgroundColor: '#ffffff',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 1,
     },
     searchTypeText: {
         fontSize: 16,
@@ -61,28 +73,92 @@ export const styles = StyleSheet.create({
         fontWeight: '500',
     },
     searchContainer: {
+        padding: 8,
+        zIndex: 1000,
+    },
+    searchInputContainer: {
+        flex: 1,
         flexDirection: 'row',
-        padding: 16,
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+    },
+    searchInputWrapper: {
+        flexDirection: 'row',
         gap: 8,
+    },
+    searchIcon: {
+        paddingRight: 4,
     },
     input: {
         flex: 1,
-        height: 40,
-        borderWidth: 1,
-        borderColor: '#cccccc',
-        borderRadius: 8,
-        paddingHorizontal: 12,
+        height: 36,
+        fontSize: 15,
+        color: '#333333',
+    },
+    clearButton: {
+        padding: 4,
+    },
+    suggestionsContainer: {
+        position: 'absolute',
+        top: 52,
+        left: 8,
+        right: 8,
         backgroundColor: '#ffffff',
+        borderRadius: 8,
+        elevation: 4,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        zIndex: 1000,
+    },
+    suggestionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        gap: 8,
+    },
+    suggestionItemBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#eeeeee',
+    },
+    suggestionRoute: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#0066cc',
+        minWidth: 45,
+    },
+    suggestionDest: {
+        fontSize: 14,
+        color: '#666666',
+        flex: 1,
+    },
+    suggestionArrow: {
+        color: '#0066cc',
+        fontWeight: '600',
+        paddingHorizontal: 4,
+    },
+    suggestionDest: {
+        fontSize: 14,
+        color: '#666666',
+        flex: 1,
     },
     searchButton: {
         backgroundColor: '#0066cc',
-        paddingHorizontal: 16,
-        justifyContent: 'center',
+        width: 36,
+        height: 36,
         borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     searchButtonText: {
         color: '#ffffff',
         fontWeight: 'bold',
+    },
+    searchButtonDisabled: {
+        backgroundColor: '#cccccc',
     },
     loader: {
         marginTop: 24,
@@ -347,4 +423,87 @@ export const styles = StyleSheet.create({
         borderRadius: 8,
         marginLeft: 8,
     },
+    nearbyRouteItem: {
+        backgroundColor: '#f0f7ff',
+        borderRadius: 8,
+        padding: 12,
+        marginRight: 8,
+        minWidth: 100,
+        alignItems: 'center',
+        // Add pressed state feedback
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1,
+        elevation: 2,
+    },
+    selectedStopItem: {
+        backgroundColor: '#f0f7ff',
+        borderWidth: 2,
+        borderColor: '#0066cc',
+    },
+    etaTime: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    etaRemark: {
+        fontSize: 12,
+        color: '#666666',
+        fontStyle: 'italic',
+    },
+    etaRemarkDeparted: {
+        color: '#999999',
+    },
+    noEta: {
+        color: '#999999',
+        fontStyle: 'italic',
+        fontSize: 14,
+    },
+    etaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 2,
+    },
+    nearbyStopContent: {
+        flex: 1,
+    },
+    
+    mapContainer: {
+        overflow: 'hidden',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+        marginTop: 8,
+        width: '100%',
+    },
+    
+    map: {
+        width: '100%',
+        height: '100%',
+    },
+    
+    busStopMarker: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 4,
+        borderWidth: 2,
+        borderColor: '#0066cc',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    
+    expandButton: {
+        alignSelf: 'center',
+        padding: 4,
+        marginTop: 4,
+    },
+    
+    expandButtonActive: {
+        backgroundColor: '#f0f0f0',
+        borderRadius: 12,
+    }
+    
 });

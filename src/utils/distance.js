@@ -32,3 +32,4 @@ export function formatDistance(distance) {
     }
     return `${distance.toFixed(1)}km`;
 }
+

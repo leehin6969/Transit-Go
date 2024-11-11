@@ -1,7 +1,7 @@
 // App.js
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -37,17 +37,99 @@ function AppContent() {
     const [routeDetails, setRouteDetails] = useState({ inbound: null, outbound: null });
     const [routeDirection, setRouteDirection] = useState('outbound');
     const [nearbyStops, setNearbyStops] = useState([]);
-    const [searchMode, setSearchMode] = useState('route'); // 'route' or 'nearby'
+    const [searchMode, setSearchMode] = useState('route');
     const [nearbyRoutes, setNearbyRoutes] = useState({});
     const [stopsMap, setStopsMap] = useState({});
+    const [selectedStopId, setSelectedStopId] = useState(null);
+    const listRef = useRef(null);
 
     const { location, loading: locationLoading, errorMsg } = useLocation();
+
+    const [allRoutes, setAllRoutes] = useState([]);
 
     useEffect(() => {
         if (searchMode === 'nearby' && location) {
             fetchNearbyStops(location.coords);
         }
     }, [searchMode, location]);
+
+    useEffect(() => {
+        if (selectedStopId && stops.length > 0) {
+            setTimeout(scrollToStop, 100);
+        }
+    }, [stops, selectedStopId]);
+
+    useEffect(() => {
+        const fetchRoutes = async () => {
+            try {
+                const response = await fetch('https://data.etabus.gov.hk/v1/transport/kmb/route/');
+                const data = await response.json();
+                if (data.data) {
+                    setAllRoutes(data.data);
+                }
+            } catch (error) {
+                console.error('Error fetching routes:', error);
+            }
+        };
+
+        fetchRoutes();
+    }, []);
+
+    const isCircularRoute = (routeInfo) => {
+        if (!routeInfo) return false;
+        return routeInfo.dest_en?.includes('CIRCULAR') ||
+            routeInfo.dest_tc?.includes('循環') ||
+            routeInfo.dest_sc?.includes('循环') ||
+            (routeInfo.orig_en === routeInfo.dest_en &&
+                routeInfo.orig_tc === routeInfo.dest_tc &&
+                routeInfo.orig_sc === routeInfo.dest_sc);
+    };
+
+    const determineRouteDirection = async (routeNumber, destination) => {
+        try {
+            const [outboundInfo, inboundInfo] = await Promise.all([
+                fetchRouteInfo(routeNumber, 'outbound', 1),
+                fetchRouteInfo(routeNumber, 'inbound', 1)
+            ]);
+
+            if (outboundInfo && outboundInfo.dest_en === destination) {
+                return 'outbound';
+            } else if (inboundInfo && inboundInfo.dest_en === destination) {
+                return 'inbound';
+            }
+
+            return 'outbound';
+        } catch (error) {
+            console.error('Error determining route direction:', error);
+            return 'outbound';
+        }
+    };
+
+    const scrollToStop = () => {
+        if (selectedStopId && stops.length > 0 && listRef.current) {
+            const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
+            if (stopIndex !== -1) {
+                // First scroll to an approximate position
+                listRef.current.scrollToOffset({
+                    offset: stopIndex * 150, // Approximate height of each item
+                    animated: false
+                });
+
+                // Then try to scroll to the exact position
+                setTimeout(() => {
+                    listRef.current.scrollToIndex({
+                        index: stopIndex,
+                        animated: true,
+                        viewPosition: 0.3, // Position item 30% from the top
+                        viewOffset: 20
+                    });
+
+                    // Reset selection after a delay
+                    setTimeout(() => setSelectedStopId(null), 2000);
+                }, 100);
+            }
+        }
+    };
 
     const createStopsMap = async () => {
         try {
@@ -68,16 +150,30 @@ function AppContent() {
         }
     };
 
-    const isCircularRoute = (routeInfo) => {
-        return routeInfo?.dest_en?.includes('CIRCULAR') || 
-               (routeInfo?.orig_en === routeInfo?.dest_en);
+    const handleRoutePress = async (route, stop) => {
+        try {
+            setLoading(true);
+            setBusRoute(route.route);
+            setSearchMode('route');
+            setSelectedStopId(stop.stop);
+
+            const correctDirection = await determineRouteDirection(route.route, route.dest_en);
+            setRouteDirection(correctDirection);
+
+            await searchBus(route.route, correctDirection);
+        } catch (error) {
+            console.error('Error in handleRoutePress:', error);
+            Alert.alert('Error', 'Failed to load route information');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const fetchNearbyStops = async (coords) => {
         try {
             setLoading(true);
             const allStops = await fetchAllStops();
-            
+
             const nearby = allStops
                 .map(stop => ({
                     ...stop,
@@ -125,7 +221,7 @@ function AppContent() {
                     routesData[stop.stop] = routesArray;
                 }
             }
-            
+
             setNearbyRoutes(routesData);
         } catch (error) {
             console.error('Error fetching nearby stops:', error);
@@ -135,15 +231,15 @@ function AppContent() {
         }
     };
 
-    const searchBus = async () => {
-        if (!busRoute) {
+    const searchBus = async (routeNumber, forcedDirection) => {
+        const routeToSearch = routeNumber || busRoute;
+        if (!routeToSearch) {
             Alert.alert('Error', 'Please enter a bus route number');
             return;
         }
 
         setLoading(true);
         try {
-            // Always fetch fresh stops data for complete mapping
             const allStopsData = await fetchAllStops();
             const newStopsMap = allStopsData.reduce((acc, stop) => {
                 acc[stop.stop] = {
@@ -155,34 +251,45 @@ function AppContent() {
             }, {});
             setStopsMap(newStopsMap);
 
-            const [outboundRoute, inboundRoute] = await Promise.all([
-                fetchRouteInfo(busRoute, 'outbound', 1),
-                fetchRouteInfo(busRoute, 'inbound', 1)
-            ]);
+            // First try outbound
+            let routeInfo = await fetchRouteInfo(routeToSearch, 'outbound', 1);
+            let direction = 'outbound';
 
-            if (!outboundRoute && !inboundRoute) {
+            // If outbound fails and it's not circular, try inbound
+            if (!routeInfo && !isCircularRoute(routeInfo)) {
+                routeInfo = await fetchRouteInfo(routeToSearch, 'inbound', 1);
+                direction = 'inbound';
+            }
+
+            if (!routeInfo) {
                 Alert.alert('Error', 'Bus route not found');
                 setLoading(false);
                 return;
             }
 
-            // Store both directions' data
+            // For circular routes, we only need outbound
+            const isCircular = isCircularRoute(routeInfo);
+            let inboundRoute = null;
+            if (!isCircular) {
+                inboundRoute = await fetchRouteInfo(routeToSearch, 'inbound', 1);
+            }
+
             setRouteDetails({
-                outbound: outboundRoute,
-                inbound: inboundRoute
+                outbound: direction === 'outbound' ? routeInfo : null,
+                inbound: direction === 'inbound' ? routeInfo : inboundRoute
             });
 
-            // Set initial route info
-            const currentRouteInfo = routeDirection === 'outbound' ? outboundRoute : inboundRoute;
-            setRouteInfo(currentRouteInfo);
+            const effectiveDirection = forcedDirection || direction;
+            setRouteDirection(effectiveDirection);
+            setRouteInfo(routeInfo);
 
-            const routeStopsData = await fetchRouteStops(busRoute, routeDirection, 1);
-            const etaData = await fetchRouteETA(busRoute, 1);
-            
+            const routeStopsData = await fetchRouteStops(routeToSearch, effectiveDirection, 1);
+            const etaData = await fetchRouteETA(routeToSearch, 1);
+
             if (routeStopsData && etaData) {
                 const etaMap = {};
                 etaData.forEach(eta => {
-                    if (eta.dir === (routeDirection === 'outbound' ? 'O' : 'I')) {
+                    if (eta.dir === (effectiveDirection === 'outbound' ? 'O' : 'I')) {
                         const key = eta.seq.toString();
                         if (!etaMap[key]) {
                             etaMap[key] = [];
@@ -205,9 +312,9 @@ function AppContent() {
                     name_en: newStopsMap[stop.stop]?.name_en,
                     name_tc: newStopsMap[stop.stop]?.name_tc,
                     name_sc: newStopsMap[stop.stop]?.name_sc,
-                    dest_en: currentRouteInfo.dest_en,
-                    dest_tc: currentRouteInfo.dest_tc,
-                    dest_sc: currentRouteInfo.dest_sc,
+                    dest_en: routeInfo.dest_en,
+                    dest_tc: routeInfo.dest_tc,
+                    dest_sc: routeInfo.dest_sc,
                     eta: etaMap[stop.seq.toString()] || []
                 }));
 
@@ -221,20 +328,20 @@ function AppContent() {
     };
 
     const toggleDirection = async () => {
+        if (isCircularRoute(routeInfo)) return;
+
         try {
             setLoading(true);
-            
             const newDirection = routeDirection === 'outbound' ? 'inbound' : 'outbound';
-            
             const newRouteInfo = routeDetails[newDirection];
+
             if (!newRouteInfo) {
                 throw new Error('Route information not found for direction');
             }
 
             setRouteDirection(newDirection);
             setRouteInfo(newRouteInfo);
-                
-            // Make sure we have the stops map
+
             let currentStopsMap = stopsMap;
             if (Object.keys(currentStopsMap).length === 0) {
                 const allStopsData = await fetchAllStops();
@@ -248,10 +355,10 @@ function AppContent() {
                 }, {});
                 setStopsMap(currentStopsMap);
             }
-            
+
             const routeStopsData = await fetchRouteStops(busRoute, newDirection, 1);
             const etaData = await fetchRouteETA(busRoute, 1);
-            
+
             if (routeStopsData && etaData) {
                 const etaMap = {};
                 etaData.forEach(eta => {
@@ -314,7 +421,10 @@ function AppContent() {
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
 
-            <Header />
+            <Header
+                searchMode={searchMode}
+                onSearchModeChange={toggleSearchMode}
+            />
 
             <View style={styles.searchTypeContainer}>
                 <TouchableOpacity
@@ -369,6 +479,7 @@ function AppContent() {
                         setBusRoute={setBusRoute}
                         onSearch={searchBus}
                         loading={loading}
+                        allRoutes={allRoutes}
                     />
 
                     {loading ? (
@@ -386,10 +497,44 @@ function AppContent() {
                                 />
                             )}
                             <FlatList
+                                ref={listRef}
                                 data={stops}
-                                renderItem={({ item }) => <StopItem item={item} />}
+                                renderItem={({ item }) => (
+                                    <StopItem
+                                        item={item}
+                                        isSelected={item.stop === selectedStopId}
+                                    />
+                                )}
                                 keyExtractor={(item) => item.seq.toString()}
                                 contentContainerStyle={styles.listContainer}
+                                getItemLayout={(data, index) => ({
+                                    length: 150, // Fixed height for each item
+                                    offset: 150 * index,
+                                    index,
+                                })}
+                                initialNumToRender={20} // Render more items initially
+                                maxToRenderPerBatch={20} // Render more items per batch
+                                windowSize={21} // Increase window size (10 screens above, 10 below, 1 current)
+                                onScrollToIndexFailed={(info) => {
+                                    console.warn('Failed to scroll to index', info);
+                                    const wait = new Promise(resolve => setTimeout(resolve, 100));
+                                    wait.then(() => {
+                                        // Scroll to offset first
+                                        listRef.current?.scrollToOffset({
+                                            offset: info.index * 150,
+                                            animated: false,
+                                        });
+                                        // Then try to scroll to the item
+                                        setTimeout(() => {
+                                            listRef.current?.scrollToIndex({
+                                                index: info.index,
+                                                animated: true,
+                                                viewPosition: 0.3,
+                                                viewOffset: 20
+                                            });
+                                        }, 100);
+                                    });
+                                }}
                             />
                         </>
                     )}
@@ -404,8 +549,8 @@ function AppContent() {
                         <>
                             <View style={styles.nearbyHeader}>
                                 <Text style={styles.nearbyTitle}>Nearby Bus Stops</Text>
-                                <TouchableOpacity 
-                                    style={styles.refreshButton} 
+                                <TouchableOpacity
+                                    style={styles.refreshButton}
                                     onPress={refreshNearbyStops}
                                 >
                                     <MaterialIcons name="refresh" size={24} color="#0066cc" />
@@ -414,9 +559,10 @@ function AppContent() {
                             <FlatList
                                 data={nearbyStops}
                                 renderItem={({ item }) => (
-                                    <NearbyStopItem 
-                                        item={item} 
-                                        routes={nearbyRoutes[item.stop]} 
+                                    <NearbyStopItem
+                                        item={item}
+                                        routes={nearbyRoutes[item.stop]}
+                                        onRoutePress={handleRoutePress}
                                     />
                                 )}
                                 keyExtractor={(item) => item.stop}
