@@ -31,7 +31,7 @@ export const LanguageProvider = ({ children }) => {
     );
 };
 
-export default function Header({ searchMode, onSearchModeChange }) {
+export default function Header({ searchMode, onSearchModeChange, showMenu, onMenuPress }) {
     const { language, setLanguage } = useLanguage();
 
     const toggleLanguage = () => {
@@ -55,7 +55,20 @@ export default function Header({ searchMode, onSearchModeChange }) {
     return (
         <View style={styles.header}>
             <View style={styles.headerContent}>
-                <Text style={styles.title}>KMB</Text>
+                <View style={styles.titleContainer}>
+                    <Text style={styles.title}>KMB</Text>
+                    <TouchableOpacity
+                        style={styles.menuButton}
+                        onPress={onMenuPress}
+                        activeOpacity={0.7}
+                    >
+                        <MaterialIcons
+                            name={showMenu ? "expand-less" : "expand-more"}
+                            size={24}
+                            color="#0066cc"
+                        />
+                    </TouchableOpacity>
+                </View>
                 <View style={styles.headerButtons}>
                     <View style={styles.searchTypeButtons}>
                         <TouchableOpacity
@@ -98,3 +111,71 @@ export default function Header({ searchMode, onSearchModeChange }) {
         </View>
     );
 }
+
+// Add these styles to your styles.js file if not already present
+const additionalStyles = {
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    menuButton: {
+        padding: 4,
+        borderRadius: 4,
+        marginLeft: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    header: {
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+        paddingTop: 8,
+    },
+    headerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333333',
+    },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    searchTypeButtons: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 2,
+    },
+    searchTypeButton: {
+        padding: 6,
+        borderRadius: 6,
+    },
+    searchTypeButtonActive: {
+        backgroundColor: '#ffffff',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 1,
+    },
+    languageButton: {
+        backgroundColor: '#f0f7ff',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    languageButtonText: {
+        color: '#0066cc',
+        fontSize: 13,
+        fontWeight: '500',
+    },
+};

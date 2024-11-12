@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     FlatList,
     SafeAreaView,
     Text,
@@ -28,6 +29,7 @@ import {
 import { styles } from './styles/styles';
 import { calculateDistance } from './utils/distance';
 
+
 function AppContent() {
     // States
     const [busRoute, setBusRoute] = useState('');
@@ -43,6 +45,18 @@ function AppContent() {
     const [selectedStopId, setSelectedStopId] = useState(null);
     const [transitioning, setTransitioning] = useState(false);
     const [allRoutes, setAllRoutes] = useState([]);
+
+    const [showMenu, setShowMenu] = useState(false);
+    const [menuHeight] = useState(new Animated.Value(0));
+
+    const toggleMenu = () => {
+        setShowMenu(!showMenu);
+        Animated.timing(menuHeight, {
+            toValue: !showMenu ? 1 : 0,
+            duration: 300,
+            useNativeDriver: false,
+        }).start();
+    };
 
     // Refs
     const listRef = useRef(null);
@@ -409,15 +423,33 @@ function AppContent() {
             <Header
                 searchMode={searchMode}
                 onSearchModeChange={toggleSearchMode}
+                showMenu={showMenu}
+                onMenuPress={toggleMenu}
             />
 
-            <View style={styles.searchTypeContainer}>
+            {/* Animated Search Type Container */}
+            <Animated.View
+                style={[
+                    styles.searchTypeContainer,
+                    {
+                        maxHeight: menuHeight.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 100]
+                        }),
+                        opacity: menuHeight,
+                        overflow: 'hidden'
+                    }
+                ]}
+            >
                 <TouchableOpacity
                     style={[
                         styles.searchTypeButton,
                         searchMode === 'route' && styles.searchTypeButtonActive,
                     ]}
-                    onPress={() => toggleSearchMode('route')}
+                    onPress={() => {
+                        toggleSearchMode('route');
+                        setShowMenu(false);
+                    }}
                 >
                     <MaterialIcons
                         name="directions-bus"
@@ -439,7 +471,10 @@ function AppContent() {
                         styles.searchTypeButton,
                         searchMode === 'nearby' && styles.searchTypeButtonActive,
                     ]}
-                    onPress={() => toggleSearchMode('nearby')}
+                    onPress={() => {
+                        toggleSearchMode('nearby');
+                        setShowMenu(false);
+                    }}
                 >
                     <MaterialIcons
                         name="near-me"
@@ -455,7 +490,8 @@ function AppContent() {
                         Near Me
                     </Text>
                 </TouchableOpacity>
-            </View>
+            </Animated.View>
+
 
             {searchMode === 'route' ? (
                 <>
@@ -530,10 +566,10 @@ function AppContent() {
                                     onPress={refreshNearbyStops}
                                     disabled={loading || transitioning}
                                 >
-                                    <MaterialIcons 
-                                        name="refresh" 
-                                        size={24} 
-                                        color={loading || transitioning ? '#cccccc' : '#0066cc'} 
+                                    <MaterialIcons
+                                        name="refresh"
+                                        size={24}
+                                        color={loading || transitioning ? '#cccccc' : '#0066cc'}
                                     />
                                 </TouchableOpacity>
                             </View>

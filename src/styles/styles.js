@@ -546,4 +546,39 @@ export const styles = StyleSheet.create({
         bottom: 16,
         right: 16,
     },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    menuButton: {
+        padding: 4,
+        borderRadius: 4,
+    },
+    searchTypeContainer: {
+        flexDirection: 'row',
+        padding: 8,
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+        justifyContent: 'space-around',
+    },
+    searchTypeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 8,
+        borderRadius: 8,
+        gap: 8,
+    },
+    searchTypeButtonActive: {
+        backgroundColor: '#f0f7ff',
+    },
+    searchTypeText: {
+        fontSize: 16,
+        color: '#666666',
+    },
+    searchTypeTextActive: {
+        color: '#0066cc',
+        fontWeight: '500',
+    },
 });
