@@ -1,33 +1,72 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { useEtaUpdates } from '../hooks/useEtaUpdates';
 import { ETAHeartbeat } from '../styles/ETAHeartbeat';
 import { formatEta, getEtaColor } from '../utils/etaFormatting';
 import { useLanguage } from './Header';
+import StreetViewButton from './StreetViewButton';
 
 const StopItem = ({ item, isSelected, onLayout, onPress }) => {
     const { getLocalizedText } = useLanguage();
     const { etaData, isUpdating } = useEtaUpdates('route', item.route, item.stop);
     const { width: screenWidth } = useWindowDimensions();
+    const [showMap, setShowMap] = useState(false);
+    const [stopDetails, setStopDetails] = useState(null);
+    const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+    const mapRef = useRef(null);
 
-    // Dynamic styles based on screen width
-    const dynamicStyles = StyleSheet.create({
-        stopItem: {
-            paddingHorizontal: screenWidth * 0.04,
-            paddingVertical: screenWidth * 0.03,
-        },
-        etaContainer: {
-            maxWidth: screenWidth * 0.9,
+    const stopLocation = useMemo(() => {
+        if (!stopDetails?.lat || !stopDetails?.long) return null;
+        return {
+            latitude: parseFloat(stopDetails.lat),
+            longitude: parseFloat(stopDetails.long),
+            latitudeDelta: 0.002,
+            longitudeDelta: 0.002,
+        };
+    }, [stopDetails]);
+
+    const fetchStopDetails = useCallback(async () => {
+        if (!item.stop) return;
+
+        setIsLoadingLocation(true);
+        try {
+            const response = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/stop/${item.stop}`);
+            if (!response.ok) throw new Error('Failed to fetch stop details');
+            const data = await response.json();
+            if (data.data) {
+                setStopDetails(data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching stop details:', error);
+        } finally {
+            setIsLoadingLocation(false);
         }
-    });
+    }, [item.stop]);
+
+    useEffect(() => {
+        if (showMap && !stopDetails && !isLoadingLocation) {
+            fetchStopDetails();
+        }
+    }, [showMap, stopDetails, isLoadingLocation, fetchStopDetails]);
+
+    useEffect(() => {
+        if (!isSelected) {
+            setShowMap(false);
+            setStopDetails(null);
+        }
+    }, [isSelected]);
+
+    const handleMapPress = useCallback(() => {
+        setShowMap(prev => !prev);
+    }, []);
 
     const renderEtaList = useCallback(() => {
         if (!item.eta || item.eta.length === 0) {
             return <Text style={styles.noEta}>No upcoming buses</Text>;
         }
 
-        // Process and filter ETAs
         const validEtas = item.eta
             .map(eta => ({
                 ...eta,
@@ -56,8 +95,8 @@ const StopItem = ({ item, isSelected, onLayout, onPress }) => {
             const showDeparted = formattedEta.minutes < 0;
 
             return (
-                <ETAHeartbeat 
-                    key={`${item.stop}-${index}-${eta.eta}`} 
+                <ETAHeartbeat
+                    key={`${item.stop}-${index}-${eta.eta}`}
                     isUpdating={isUpdating}
                 >
                     <View style={styles.etaItem}>
@@ -85,73 +124,163 @@ const StopItem = ({ item, isSelected, onLayout, onPress }) => {
         });
     }, [item.eta, isUpdating, getLocalizedText]);
 
-    return (
-        <TouchableOpacity
-            style={[
-                styles.stopItem,
-                dynamicStyles.stopItem,
-                isSelected && styles.selectedStopItem
-            ]}
-            onLayout={onLayout}
-            onPress={() => onPress(item.stop)}
-            activeOpacity={0.7}
-        >
-            <View style={styles.stopHeader}>
-                <View style={styles.stopInfo}>
-                    <Text style={styles.stopName} numberOfLines={2}>
-                        {getLocalizedText({
+    const renderMap = () => {
+        if (!stopLocation) return null;
+
+        return (
+            <View style={styles.mapWrapper}>
+                <MapView
+                    ref={mapRef}
+                    style={styles.map}
+                    initialRegion={stopLocation}
+                >
+                    <Marker
+                        coordinate={{
+                            latitude: stopLocation.latitude,
+                            longitude: stopLocation.longitude
+                        }}
+                        title={getLocalizedText({
                             en: item.name_en,
                             tc: item.name_tc,
                             sc: item.name_sc
                         })}
-                    </Text>
-                    <Text style={styles.stopSequence}>Stop {item.seq}</Text>
-                </View>
-                <Text style={styles.destination} numberOfLines={2}>
-                    {getLocalizedText({
-                        en: item.dest_en,
-                        tc: item.dest_tc,
-                        sc: item.dest_sc
-                    })}
-                </Text>
+                    >
+                        <View style={styles.markerContainer}>
+                            <MaterialIcons name="directions-bus" size={24} color="#0066cc" />
+                        </View>
+                    </Marker>
+                </MapView>
+                <StreetViewButton
+                    latitude={stopLocation.latitude}
+                    longitude={stopLocation.longitude}
+                    style={styles.streetViewButton}
+                />
             </View>
-            
-            <View style={styles.etaContainer}>
-                {renderEtaList()}
-            </View>
+        );
+    };
 
-            {isSelected && (
-                <View style={styles.expandedContent}>
-                    <View style={styles.expandedHeader}>
-                        <MaterialIcons name="location-on" size={16} color="#0066cc" />
-                        <Text style={styles.expandedTitle}>Stop Information</Text>
+    return (
+        <View style={styles.container}>
+            <View
+                style={[
+                    styles.stopItem,
+                    isSelected && styles.selectedStopItem
+                ]}
+            >
+                <TouchableOpacity
+                    onLayout={onLayout}
+                    onPress={() => onPress(item.stop)}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.contentWrapper}>
+                        <View style={styles.mainContent}>
+                            <View style={styles.stopHeader}>
+                                <View style={styles.stopInfo}>
+                                    <Text style={styles.stopName} numberOfLines={2}>
+                                        {getLocalizedText({
+                                            en: item.name_en,
+                                            tc: item.name_tc,
+                                            sc: item.name_sc
+                                        })}
+                                    </Text>
+                                    <Text style={styles.stopSequence}>Stop {item.seq}</Text>
+                                </View>
+                                {!isSelected && (
+                                    <Text style={styles.destination} numberOfLines={2}>
+                                        {getLocalizedText({
+                                            en: item.dest_en,
+                                            tc: item.dest_tc,
+                                            sc: item.dest_sc
+                                        })}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={styles.etaContainer}>
+                                {renderEtaList()}
+                            </View>
+                        </View>
+
+                        {isSelected && (
+                            <View style={styles.actionsContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        showMap && styles.actionButtonActive
+                                    ]}
+                                    onPress={handleMapPress}
+                                >
+                                    <MaterialIcons
+                                        name={isLoadingLocation ? "hourglass-empty" : "map"}
+                                        size={20}
+                                        color="#0066cc"
+                                    />
+                                    <Text style={styles.actionButtonText}>
+                                        {isLoadingLocation ? 'Loading' : 'Map'}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.actionButton}
+                                    onPress={() => {/* Route list handler */ }}
+                                >
+                                    <MaterialIcons name="list" size={20} color="#0066cc" />
+                                    <Text style={styles.actionButtonText}>Routes</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
-                    <Text style={styles.expandedText}>
-                        Stop ID: {item.stop}
-                    </Text>
-                    {/* You can add more details here as needed */}
-                </View>
-            )}
-        </TouchableOpacity>
+                </TouchableOpacity>
+
+                {showMap && (
+                    <View style={styles.mapDivider} />
+                )}
+
+                {showMap && (
+                    isLoadingLocation ? (
+                        <View style={[styles.mapWrapper, styles.loadingContainer]}>
+                            <MaterialIcons name="hourglass-empty" size={24} color="#0066cc" />
+                            <Text style={styles.loadingText}>Loading map...</Text>
+                        </View>
+                    ) : (
+                        renderMap()
+                    )
+                )}
+            </View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    stopItem: {
-        borderRadius: 8,
+    container: {
         marginBottom: 8,
+    },
+    stopItem: {
+        backgroundColor: '#ffffff',
+        borderRadius: 8,
         elevation: 2,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.2,
         shadowRadius: 2,
-        backgroundColor: '#ffffff',
         borderWidth: 2,
-        borderColor: 'transparent'
+        borderColor: 'transparent',
     },
     selectedStopItem: {
         backgroundColor: '#f0f7ff',
         borderColor: '#0066cc',
+    },
+    contentWrapper: {
+        flexDirection: 'row',
+        padding: 16,
+    },
+    mapDivider: {
+        height: 1,
+        backgroundColor: '#e0e0e0',
+        marginHorizontal: 16,
+    },
+    mainContent: {
+        flex: 1,
+        paddingRight: 8,
     },
     stopHeader: {
         flexDirection: 'row',
@@ -204,31 +333,71 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         fontSize: 14,
     },
-    expandedContent: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
+    actionsContainer: {
+        width: 70,
+        borderLeftWidth: 1,
+        borderLeftColor: '#e0e0e0',
+        paddingLeft: 8,
+        gap: 8,
     },
-    expandedHeader: {
-        flexDirection: 'row',
+    actionButton: {
         alignItems: 'center',
-        marginBottom: 8,
-        gap: 4,
+        justifyContent: 'center',
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: '#f0f7ff',
     },
-    expandedTitle: {
-        fontSize: 14,
-        fontWeight: '600',
+    actionButtonActive: {
+        backgroundColor: '#e0e9f7',
+    },
+    actionButtonText: {
+        fontSize: 12,
         color: '#0066cc',
+        marginTop: 4,
     },
-    expandedText: {
+    mapWrapper: {
+        height: 200,
+        overflow: 'hidden',
+        backgroundColor: '#f5f5f5',
+        //paddingTop: 10,
+        borderRadius: 8,
+    },
+    map: {
+        width: '100%',
+        height: '100%',
+
+    },
+    markerContainer: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 4,
+        borderWidth: 2,
+        borderColor: '#0066cc',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    streetViewButton: {
+        position: 'absolute',
+        bottom: 16,
+        right: 16,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f0f7ff',
+        height: 200,
+    },
+    loadingText: {
+        marginTop: 8,
+        color: '#0066cc',
         fontSize: 14,
-        color: '#666666',
-        marginLeft: 20,
     }
 });
 
 export default memo(StopItem, (prevProps, nextProps) => {
     return prevProps.isSelected === nextProps.isSelected &&
-           prevProps.item.eta === nextProps.item.eta;
+        prevProps.item.eta === nextProps.item.eta;
 });
