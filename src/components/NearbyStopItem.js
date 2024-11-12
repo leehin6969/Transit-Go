@@ -72,8 +72,8 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
         const region = {
             latitude: stopLocation.latitude,
             longitude: stopLocation.longitude,
-            latitudeDelta: 0.0001,  // Adjusted zoom level
-            longitudeDelta: 0.0001, // Adjusted zoom level
+            latitudeDelta: 0.0002,  // Adjusted zoom level
+            longitudeDelta: 0.0002, // Adjusted zoom level
         };
 
         if (userLocation) {
@@ -84,8 +84,8 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
                 // If user is outside the initial zoom area, adjust the region to fit both locations
                 region.latitude = (stopLocation.latitude + userLocation.latitude) / 2;
                 region.longitude = (stopLocation.longitude + userLocation.longitude) / 2;
-                region.latitudeDelta = Math.max(latDiff * 2.5, 0.000050);
-                region.longitudeDelta = Math.max(lonDiff * 2.5, 0.00050);
+                region.latitudeDelta = Math.max(latDiff * 0.1, 0.0001);
+                region.longitudeDelta = Math.max(lonDiff * 0.1, 0.0001);
             }
         }
 
