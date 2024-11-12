@@ -6,9 +6,10 @@ import { useEtaUpdates } from '../hooks/useEtaUpdates';
 import { ETAHeartbeat } from '../styles/ETAHeartbeat';
 import { formatEta, getEtaColor } from '../utils/etaFormatting';
 import { useLanguage } from './Header';
+import StopRoutes from './StopRoutes';
 import StreetViewButton from './StreetViewButton';
 
-const StopItem = ({ item, isSelected, onLayout, onPress }) => {
+const StopItem = ({ item, isSelected, onPress, showModal, hideModal }) => {
     const { getLocalizedText } = useLanguage();
     const { etaData, isUpdating } = useEtaUpdates('route', item.route, item.stop);
     const { width: screenWidth } = useWindowDimensions();
@@ -61,6 +62,20 @@ const StopItem = ({ item, isSelected, onLayout, onPress }) => {
     const handleMapPress = useCallback(() => {
         setShowMap(prev => !prev);
     }, []);
+
+    const handleShowRoutes = () => {
+        showModal(
+            <StopRoutes 
+                stopId={item.stop}
+                stopName={getLocalizedText({
+                    en: item.name_en,
+                    tc: item.name_tc,
+                    sc: item.name_sc
+                })}
+                onBack={hideModal}
+            />
+        );
+    };
 
     const renderEtaList = useCallback(() => {
         if (!item.eta || item.eta.length === 0) {
@@ -161,14 +176,8 @@ const StopItem = ({ item, isSelected, onLayout, onPress }) => {
 
     return (
         <View style={styles.container}>
-            <View
-                style={[
-                    styles.stopItem,
-                    isSelected && styles.selectedStopItem
-                ]}
-            >
+            <View style={[styles.stopItem, isSelected && styles.selectedStopItem]}>
                 <TouchableOpacity
-                    onLayout={onLayout}
                     onPress={() => onPress(item.stop)}
                     activeOpacity={0.7}
                 >
@@ -221,7 +230,7 @@ const StopItem = ({ item, isSelected, onLayout, onPress }) => {
 
                                 <TouchableOpacity
                                     style={styles.actionButton}
-                                    onPress={() => {/* Route list handler */ }}
+                                    onPress={handleShowRoutes}
                                 >
                                     <MaterialIcons name="list" size={20} color="#0066cc" />
                                     <Text style={styles.actionButtonText}>Routes</Text>
@@ -359,13 +368,11 @@ const styles = StyleSheet.create({
         height: 200,
         overflow: 'hidden',
         backgroundColor: '#f5f5f5',
-        //paddingTop: 10,
         borderRadius: 8,
     },
     map: {
         width: '100%',
         height: '100%',
-
     },
     markerContainer: {
         backgroundColor: '#ffffff',

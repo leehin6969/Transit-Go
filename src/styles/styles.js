@@ -330,6 +330,15 @@ export const styles = StyleSheet.create({
     searchButtonDisabled: {
         backgroundColor: '#cccccc',
     },
+    modalContainer: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#f5f5f5',
+        zIndex: 1000,
+    },
+    modalContainer: {
+        backgroundColor: 'rgba(0, 0, 0)', // Semi-transparent background
+        zIndex: 99999999999,
+    },
     directionToggle: {
         backgroundColor: '#ffffff',
         marginHorizontal: 16,
