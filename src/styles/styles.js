@@ -2,7 +2,8 @@ import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
     container: {
-        marginBottom: 8,
+        flex: 1,
+        backgroundColor: '#f5f5f5',
     },
     header: {
         backgroundColor: '#ffffff',
@@ -180,18 +181,18 @@ export const styles = StyleSheet.create({
     stopItem: {
         backgroundColor: '#ffffff',
         borderRadius: 8,
+        padding: '4%', // Use percentage instead of fixed padding
+        marginBottom: 8,
         elevation: 2,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.2,
         shadowRadius: 2,
-        borderWidth: 2,
-        borderColor: 'transparent'
     },
     stopHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 12,
+        marginBottom: 8,
     },
     stopSequence: {
         fontSize: 16,
@@ -201,8 +202,6 @@ export const styles = StyleSheet.create({
     destination: {
         fontSize: 14,
         color: '#666666',
-        textAlign: 'right',
-        flex: 0.4,
     },
     etaContainer: {
         gap: 4,
@@ -211,21 +210,18 @@ export const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        paddingVertical: 2,
     },
     etaTime: {
         fontSize: 14,
-        fontWeight: '500',
+        color: '#0066cc',
     },
     etaRemark: {
         fontSize: 12,
         color: '#666666',
-        fontStyle: 'italic',
     },
     noEta: {
         color: '#999999',
         fontStyle: 'italic',
-        fontSize: 14,
     },
     nearbyContainer: {
         flex: 1,
@@ -236,28 +232,6 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         paddingBottom: 8,
-    },
-    actionsContainer: {
-        width: 70,
-        borderLeftWidth: 1,
-        borderLeftColor: '#e0e0e0',
-        paddingLeft: 8,
-        gap: 8,
-    },
-    actionButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 8,
-        borderRadius: 8,
-        backgroundColor: '#f0f7ff',
-    },
-    actionButtonActive: {
-        backgroundColor: '#e0e9f7',
-    },
-    actionButtonText: {
-        fontSize: 12,
-        color: '#0066cc',
-        marginTop: 4,
     },
     nearbyTitle: {
         fontSize: 18,
@@ -309,7 +283,6 @@ export const styles = StyleSheet.create({
         minWidth: 100,
         alignItems: 'center',
     },
-    
     nearbyRouteNumber: {
         fontSize: 16,
         fontWeight: '600',
@@ -466,14 +439,8 @@ export const styles = StyleSheet.create({
     },
     selectedStopItem: {
         backgroundColor: '#f0f7ff',
+        borderWidth: 2,
         borderColor: '#0066cc',
-    },
-    contentWrapper: {
-        flexDirection: 'row',
-    },
-    mainContent: {
-        flex: 1,
-        paddingRight: 8,
     },
     etaTime: {
         fontSize: 14,

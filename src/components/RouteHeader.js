@@ -1,8 +1,9 @@
-// RouteHeader.js
+// components/RouteHeader.js
 import { MaterialIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { styles } from '../styles/styles';
+import { getRouteDirectionInfo } from '../utils/routeServiceCheck';
 import { useLanguage } from './Header';
 
 export default function RouteHeader({
@@ -10,13 +11,25 @@ export default function RouteHeader({
     routeDetails,
     routeDirection,
     onToggle,
-    isCircular,
     disabled
 }) {
     const { getLocalizedText } = useLanguage();
     const currentRouteInfo = routeDetails[routeDirection];
+    const [canToggleDirection, setCanToggleDirection] = useState(true);
+    const [isCircular, setIsCircular] = useState(false);
 
-    // Special handling for circular routes
+    useEffect(() => {
+        const checkRouteDirections = async () => {
+            if (routeInfo?.route) {
+                const directionInfo = await getRouteDirectionInfo(routeInfo.route);
+                setCanToggleDirection(directionInfo.isBidirectional);
+                setIsCircular(directionInfo.isCircular);
+            }
+        };
+        
+        checkRouteDirections();
+    }, [routeInfo?.route]);
+
     const renderRouteDescription = () => {
         if (isCircular) {
             return (
@@ -72,14 +85,14 @@ export default function RouteHeader({
             <View style={styles.routeContent}>
                 <Text style={styles.routeNumber}>{routeInfo.route}</Text>
                 {renderRouteDescription()}
-                {!isCircular && (
+                {!isCircular && canToggleDirection && (
                     <TouchableOpacity
                         style={[
                             styles.toggleIcon,
-                            disabled && styles.toggleIconDisabled
+                            (disabled || !canToggleDirection) && styles.toggleIconDisabled
                         ]}
                         onPress={onToggle}
-                        disabled={disabled}
+                        disabled={disabled || !canToggleDirection}
                     >
                         <MaterialIcons
                             name="swap-horiz"
