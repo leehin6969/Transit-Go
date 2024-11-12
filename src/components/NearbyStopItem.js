@@ -1,8 +1,14 @@
 // NearbyStopItem.js
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Animated, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker } from 'react-native-maps'; // Fixed import
+import {
+    Animated,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import { useEtaUpdates } from '../hooks/useEtaUpdates';
 import useLocation from '../hooks/useLocation';
 import { ETAHeartbeat } from '../styles/ETAHeartbeat';
@@ -10,6 +16,8 @@ import { styles } from '../styles/styles';
 import { formatDistance } from '../utils/distance';
 import { formatEta, getEtaColor } from '../utils/etaFormatting';
 import { useLanguage } from './Header';
+import StreetViewButton from './StreetViewButton';
+
 
 export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
     const { getLocalizedText } = useLanguage();
@@ -72,8 +80,8 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
         const region = {
             latitude: stopLocation.latitude,
             longitude: stopLocation.longitude,
-            latitudeDelta: 0.0002,  // Adjusted zoom level
-            longitudeDelta: 0.0002, // Adjusted zoom level
+            latitudeDelta: 0.0002,
+            longitudeDelta: 0.0002,
         };
 
         if (userLocation) {
@@ -81,7 +89,6 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
             const lonDiff = Math.abs(stopLocation.longitude - userLocation.longitude);
 
             if (latDiff > region.latitudeDelta || lonDiff > region.longitudeDelta) {
-                // If user is outside the initial zoom area, adjust the region to fit both locations
                 region.latitude = (stopLocation.latitude + userLocation.latitude) / 2;
                 region.longitude = (stopLocation.longitude + userLocation.longitude) / 2;
                 region.latitudeDelta = Math.max(latDiff * 0.1, 0.0001);
@@ -90,24 +97,32 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
         }
 
         return (
-            <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
-                <MapView
-                    style={styles.map}
-                    initialRegion={region}
-                    showsUserLocation={true}
-                    showsMyLocationButton={true}
-                >
-                    <Marker
-                        coordinate={stopLocation}
-                        title={getLocalizedText(item)}
-                        description="Bus Stop"
+            <View>
+                <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
+                    <MapView
+                        style={styles.map}
+                        initialRegion={region}
+                        showsUserLocation={true}
+                        showsMyLocationButton={true}
                     >
-                        <View style={styles.busStopMarker}>
-                            <MaterialIcons name="directions-bus" size={24} color="#0066cc" />
-                        </View>
-                    </Marker>
-                </MapView>
-            </Animated.View>
+                        <Marker
+                            coordinate={stopLocation}
+                            title={getLocalizedText(item)}
+                            description="Bus Stop"
+                        >
+                            <View style={styles.busStopMarker}>
+                                <MaterialIcons name="directions-bus" size={24} color="#0066cc" />
+                            </View>
+                        </Marker>
+                    </MapView>
+
+                    <StreetViewButton
+                        latitude={stopLocation.latitude}
+                        longitude={stopLocation.longitude}
+                        style={styles.streetViewButtonPosition}
+                    />
+                </Animated.View>
+            </View>
         );
     };
 
@@ -142,8 +157,13 @@ export default function NearbyStopItem({ item, routes = [], onRoutePress }) {
                                 activeOpacity={0.7}
                             >
                                 <View>
-                                    <Text style={styles.nearbyRouteNumber}>{route.route}</Text>
-                                    <Text style={styles.nearbyRouteDestination} numberOfLines={1}>
+                                    <Text style={styles.nearbyRouteNumber}>
+                                        {route.route}
+                                    </Text>
+                                    <Text 
+                                        style={styles.nearbyRouteDestination} 
+                                        numberOfLines={1}
+                                    >
                                         → {getLocalizedText({
                                             en: route.dest_en || 'N/A',
                                             tc: route.dest_tc || 'N/A',

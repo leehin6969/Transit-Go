@@ -181,7 +181,7 @@ export const styles = StyleSheet.create({
     stopItem: {
         backgroundColor: '#ffffff',
         borderRadius: 8,
-        padding: 16,
+        padding: '4%', // Use percentage instead of fixed padding
         marginBottom: 8,
         elevation: 2,
         shadowColor: '#000000',
@@ -540,6 +540,10 @@ export const styles = StyleSheet.create({
     retryButton: {
         backgroundColor: '#0066cc',
         paddingHorizontal: 16,
-    }
-
+    },
+    streetViewButtonPosition: {
+        position: 'absolute',
+        bottom: 16,
+        right: 16,
+    },
 });

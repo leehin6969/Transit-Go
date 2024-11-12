@@ -1,7 +1,7 @@
-// App.js
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import { debounce } from 'lodash';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -10,6 +10,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    useWindowDimensions,
 } from 'react-native';
 
 import Header, { LanguageProvider } from './components/Header';
@@ -30,6 +31,7 @@ import { styles } from './styles/styles';
 import { calculateDistance } from './utils/distance';
 
 function AppContent() {
+    // States
     const [busRoute, setBusRoute] = useState('');
     const [loading, setLoading] = useState(false);
     const [stops, setStops] = useState([]);
@@ -41,23 +43,69 @@ function AppContent() {
     const [nearbyRoutes, setNearbyRoutes] = useState({});
     const [stopsMap, setStopsMap] = useState({});
     const [selectedStopId, setSelectedStopId] = useState(null);
-    const listRef = useRef(null);
-
-    const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
-
+    const [stopItemHeight, setStopItemHeight] = useState(0);
+    const [transitioning, setTransitioning] = useState(false);
     const [allRoutes, setAllRoutes] = useState([]);
 
+    // Refs
+    const listRef = useRef(null);
+    const itemLayoutsRef = useRef(new Map());
+    const isScrollingRef = useRef(false);
+    const scrollTimeoutRef = useRef(null);
+
+    // Hooks
+    const { height: screenHeight } = useWindowDimensions();
+    const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
+
+    // Create a debounced scroll function
+    const debouncedScrollToStop = useCallback(
+        debounce((index) => {
+            if (!listRef.current || isScrollingRef.current) return;
+
+            try {
+                isScrollingRef.current = true;
+                console.log('Scrolling to index:', index);
+
+                if (scrollTimeoutRef.current) {
+                    clearTimeout(scrollTimeoutRef.current);
+                }
+
+                listRef.current.scrollToIndex({
+                    index,
+                    animated: true,
+                    viewPosition: 0.3,
+                    viewOffset: 20
+                });
+
+                scrollTimeoutRef.current = setTimeout(() => {
+                    isScrollingRef.current = false;
+                    setTransitioning(false);
+                }, 500);
+
+            } catch (error) {
+                console.warn('Scroll failed:', error);
+                isScrollingRef.current = false;
+                setTransitioning(false);
+            }
+        }, 300),
+        [listRef]
+    );
+
+    // Handle stop item layout measurement
+    const handleStopItemLayout = useCallback((event, stopId) => {
+        const { height } = event.nativeEvent.layout;
+        itemLayoutsRef.current.set(stopId, height);
+        if (!stopItemHeight) {
+            setStopItemHeight(height);
+        }
+    }, [stopItemHeight]);
+
+    // Effects
     useEffect(() => {
         if (searchMode === 'nearby' && location) {
             fetchNearbyStops(location.coords);
         }
     }, [searchMode, location]);
-
-    useEffect(() => {
-        if (selectedStopId && stops.length > 0) {
-            setTimeout(scrollToStop, 100);
-        }
-    }, [stops, selectedStopId]);
 
     useEffect(() => {
         const fetchRoutes = async () => {
@@ -75,6 +123,28 @@ function AppContent() {
         fetchRoutes();
     }, []);
 
+    useEffect(() => {
+        if (selectedStopId && stops.length > 0 && !isScrollingRef.current) {
+            const timer = setTimeout(() => {
+                const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
+                if (stopIndex !== -1) {
+                    debouncedScrollToStop(stopIndex);
+                }
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [stops, selectedStopId, debouncedScrollToStop]);
+
+    useEffect(() => {
+        return () => {
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+            debouncedScrollToStop.cancel();
+        };
+    }, [debouncedScrollToStop]);
+
+    // Utility functions
     const isCircularRoute = (routeInfo) => {
         if (!routeInfo) return false;
         return routeInfo.dest_en?.includes('CIRCULAR') ||
@@ -105,62 +175,27 @@ function AppContent() {
         }
     };
 
-    const scrollToStop = () => {
-        if (selectedStopId && stops.length > 0 && listRef.current) {
-            const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
-            if (stopIndex !== -1) {
-                // First scroll to an approximate position
-                listRef.current.scrollToOffset({
-                    offset: stopIndex * 150, // Approximate height of each item
-                    animated: false
-                });
-
-                // Then try to scroll to the exact position
-                setTimeout(() => {
-                    listRef.current.scrollToIndex({
-                        index: stopIndex,
-                        animated: true,
-                        viewPosition: 0.3, // Position item 30% from the top
-                        viewOffset: 20
-                    });
-
-                    // Reset selection after a delay
-                    setTimeout(() => setSelectedStopId(null), 2000);
-                }, 100);
-            }
-        }
-    };
-
-    const createStopsMap = async () => {
-        try {
-            const allStopsData = await fetchAllStops();
-            const newStopsMap = allStopsData.reduce((acc, stop) => {
-                acc[stop.stop] = {
-                    name_en: stop.name_en,
-                    name_tc: stop.name_tc,
-                    name_sc: stop.name_sc
-                };
-                return acc;
-            }, {});
-            setStopsMap(newStopsMap);
-            return newStopsMap;
-        } catch (error) {
-            console.error('Error creating stops map:', error);
-            throw error;
-        }
-    };
+    // Handler functions
+    const handleStopPress = useCallback((stopId) => {
+        setSelectedStopId(stopId === selectedStopId ? null : stopId);
+    }, [selectedStopId]);
 
     const handleRoutePress = async (route, stop) => {
         try {
             setLoading(true);
+            setTransitioning(true);
             setBusRoute(route.route);
             setSearchMode('route');
-            setSelectedStopId(stop.stop);
 
             const correctDirection = await determineRouteDirection(route.route, route.dest_en);
             setRouteDirection(correctDirection);
 
             await searchBus(route.route, correctDirection);
+
+            requestAnimationFrame(() => {
+                setSelectedStopId(stop.stop);
+            });
+
         } catch (error) {
             console.error('Error in handleRoutePress:', error);
             Alert.alert('Error', 'Failed to load route information');
@@ -169,6 +204,7 @@ function AppContent() {
         }
     };
 
+    // API functions
     const fetchNearbyStops = async (coords) => {
         try {
             setLoading(true);
@@ -210,15 +246,13 @@ function AppContent() {
                         return acc;
                     }, {});
 
-                    const routesArray = Object.entries(routeETAs).map(([route, etas]) => ({
+                    routesData[stop.stop] = Object.entries(routeETAs).map(([route, etas]) => ({
                         route: route,
                         eta: etas[0]?.eta,
                         dest_en: etas[0]?.dest_en,
                         dest_tc: etas[0]?.dest_tc,
                         dest_sc: etas[0]?.dest_sc
                     }));
-
-                    routesData[stop.stop] = routesArray;
                 }
             }
 
@@ -251,11 +285,9 @@ function AppContent() {
             }, {});
             setStopsMap(newStopsMap);
 
-            // First try outbound
             let routeInfo = await fetchRouteInfo(routeToSearch, 'outbound', 1);
             let direction = 'outbound';
 
-            // If outbound fails and it's not circular, try inbound
             if (!routeInfo && !isCircularRoute(routeInfo)) {
                 routeInfo = await fetchRouteInfo(routeToSearch, 'inbound', 1);
                 direction = 'inbound';
@@ -267,7 +299,6 @@ function AppContent() {
                 return;
             }
 
-            // For circular routes, we only need outbound
             const isCircular = isCircularRoute(routeInfo);
             let inboundRoute = null;
             if (!isCircular) {
@@ -332,6 +363,7 @@ function AppContent() {
 
         try {
             setLoading(true);
+            setSelectedStopId(null);
             const newDirection = routeDirection === 'outbound' ? 'inbound' : 'outbound';
             const newRouteInfo = routeDetails[newDirection];
 
@@ -341,20 +373,6 @@ function AppContent() {
 
             setRouteDirection(newDirection);
             setRouteInfo(newRouteInfo);
-
-            let currentStopsMap = stopsMap;
-            if (Object.keys(currentStopsMap).length === 0) {
-                const allStopsData = await fetchAllStops();
-                currentStopsMap = allStopsData.reduce((acc, stop) => {
-                    acc[stop.stop] = {
-                        name_en: stop.name_en,
-                        name_tc: stop.name_tc,
-                        name_sc: stop.name_sc
-                    };
-                    return acc;
-                }, {});
-                setStopsMap(currentStopsMap);
-            }
 
             const routeStopsData = await fetchRouteStops(busRoute, newDirection, 1);
             const etaData = await fetchRouteETA(busRoute, 1);
@@ -382,9 +400,9 @@ function AppContent() {
                 const processedStops = routeStopsData.map(stop => ({
                     seq: stop.seq,
                     stop: stop.stop,
-                    name_en: currentStopsMap[stop.stop]?.name_en,
-                    name_tc: currentStopsMap[stop.stop]?.name_tc,
-                    name_sc: currentStopsMap[stop.stop]?.name_sc,
+                    name_en: stopsMap[stop.stop]?.name_en,
+                    name_tc: stopsMap[stop.stop]?.name_tc,
+                    name_sc: stopsMap[stop.stop]?.name_sc,
                     dest_en: newRouteInfo.dest_en,
                     dest_tc: newRouteInfo.dest_tc,
                     dest_sc: newRouteInfo.dest_sc,
@@ -396,7 +414,6 @@ function AppContent() {
         } catch (error) {
             console.error('Error updating direction:', error);
             Alert.alert('Error', 'Failed to update route direction');
-
             setRouteDirection(routeDirection);
             setRouteInfo(routeDetails[routeDirection]);
         } finally {
@@ -405,6 +422,7 @@ function AppContent() {
     };
 
     const toggleSearchMode = (mode) => {
+        setSelectedStopId(null);
         setSearchMode(mode);
         if (mode === 'nearby' && location) {
             fetchNearbyStops(location.coords);
@@ -413,10 +431,7 @@ function AppContent() {
 
     const refreshNearbyStops = async () => {
         try {
-            // Get fresh location first
             const freshLocation = await refreshLocation();
-
-            // If we got a new location, fetch nearby stops
             if (freshLocation) {
                 await fetchNearbyStops(freshLocation.coords);
             }
@@ -512,37 +527,42 @@ function AppContent() {
                                     <StopItem
                                         item={item}
                                         isSelected={item.stop === selectedStopId}
+                                        onLayout={(event) => handleStopItemLayout(event, item.stop)}
+                                        onPress={handleStopPress}
                                     />
                                 )}
                                 keyExtractor={(item) => item.seq.toString()}
                                 contentContainerStyle={styles.listContainer}
                                 getItemLayout={(data, index) => ({
-                                    length: 150, // Fixed height for each item
-                                    offset: 150 * index,
+                                    length: stopItemHeight || 150,
+                                    offset: (stopItemHeight || 150) * index,
                                     index,
                                 })}
-                                initialNumToRender={20} // Render more items initially
-                                maxToRenderPerBatch={20} // Render more items per batch
-                                windowSize={21} // Increase window size (10 screens above, 10 below, 1 current)
+                                removeClippedSubviews={true}
+                                maxToRenderPerBatch={10}
+                                updateCellsBatchingPeriod={50}
+                                initialNumToRender={10}
+                                windowSize={21}
                                 onScrollToIndexFailed={(info) => {
-                                    console.warn('Failed to scroll to index', info);
-                                    const wait = new Promise(resolve => setTimeout(resolve, 100));
-                                    wait.then(() => {
-                                        // Scroll to offset first
+                                    if (!isScrollingRef.current) {
+                                        isScrollingRef.current = true;
                                         listRef.current?.scrollToOffset({
-                                            offset: info.index * 150,
+                                            offset: (stopItemHeight || 150) * info.index,
                                             animated: false,
                                         });
-                                        // Then try to scroll to the item
+                                        
                                         setTimeout(() => {
-                                            listRef.current?.scrollToIndex({
-                                                index: info.index,
-                                                animated: true,
-                                                viewPosition: 0.3,
-                                                viewOffset: 20
-                                            });
+                                            if (info.index < stops.length) {
+                                                listRef.current?.scrollToIndex({
+                                                    index: info.index,
+                                                    animated: true,
+                                                    viewPosition: 0.4,
+                                                    viewOffset: 20
+                                                });
+                                            }
+                                            isScrollingRef.current = false;
                                         }, 100);
-                                    });
+                                    }
                                 }}
                             />
                         </>
@@ -561,8 +581,13 @@ function AppContent() {
                                 <TouchableOpacity
                                     style={styles.refreshButton}
                                     onPress={refreshNearbyStops}
+                                    disabled={loading || transitioning}
                                 >
-                                    <MaterialIcons name="refresh" size={24} color="#0066cc" />
+                                    <MaterialIcons 
+                                        name="refresh" 
+                                        size={24} 
+                                        color={loading || transitioning ? '#cccccc' : '#0066cc'} 
+                                    />
                                 </TouchableOpacity>
                             </View>
                             <FlatList

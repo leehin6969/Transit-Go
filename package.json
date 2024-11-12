@@ -19,6 +19,7 @@
     "expo-haptics": "^13.0.1",
     "expo-location": "~17.0.1",
     "expo-status-bar": "~1.12.1",
+    "lodash": "^4.17.21",
     "map": "^1.0.1",
     "react": "18.2.0",
     "react-native": "^0.74.5",
