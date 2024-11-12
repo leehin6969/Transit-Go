@@ -1,6 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { debounce } from 'lodash';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -10,7 +9,6 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useWindowDimensions,
 } from 'react-native';
 
 import Header, { LanguageProvider } from './components/Header';
@@ -43,62 +41,37 @@ function AppContent() {
     const [nearbyRoutes, setNearbyRoutes] = useState({});
     const [stopsMap, setStopsMap] = useState({});
     const [selectedStopId, setSelectedStopId] = useState(null);
-    const [stopItemHeight, setStopItemHeight] = useState(0);
     const [transitioning, setTransitioning] = useState(false);
     const [allRoutes, setAllRoutes] = useState([]);
 
     // Refs
     const listRef = useRef(null);
-    const itemLayoutsRef = useRef(new Map());
-    const isScrollingRef = useRef(false);
-    const scrollTimeoutRef = useRef(null);
 
     // Hooks
-    const { height: screenHeight } = useWindowDimensions();
     const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
 
-    // Create a debounced scroll function
-    const debouncedScrollToStop = useCallback(
-        debounce((index) => {
-            if (!listRef.current || isScrollingRef.current) return;
+    // Simplified scroll function that only handles the transition case
+    const scrollToStop = useCallback((index) => {
+        if (!listRef.current || !transitioning) return;
 
-            try {
-                isScrollingRef.current = true;
-                console.log('Scrolling to index:', index);
+        try {
+            console.log('Scrolling to index:', index);
+            listRef.current.scrollToIndex({
+                index,
+                animated: true,
+                viewPosition: 0.3,
+                viewOffset: 20
+            });
 
-                if (scrollTimeoutRef.current) {
-                    clearTimeout(scrollTimeoutRef.current);
-                }
-
-                listRef.current.scrollToIndex({
-                    index,
-                    animated: true,
-                    viewPosition: 0.3,
-                    viewOffset: 20
-                });
-
-                scrollTimeoutRef.current = setTimeout(() => {
-                    isScrollingRef.current = false;
-                    setTransitioning(false);
-                }, 500);
-
-            } catch (error) {
-                console.warn('Scroll failed:', error);
-                isScrollingRef.current = false;
+            // Clear transitioning state after scroll
+            setTimeout(() => {
                 setTransitioning(false);
-            }
-        }, 300),
-        [listRef]
-    );
-
-    // Handle stop item layout measurement
-    const handleStopItemLayout = useCallback((event, stopId) => {
-        const { height } = event.nativeEvent.layout;
-        itemLayoutsRef.current.set(stopId, height);
-        if (!stopItemHeight) {
-            setStopItemHeight(height);
+            }, 500);
+        } catch (error) {
+            console.warn('Scroll failed:', error);
+            setTransitioning(false);
         }
-    }, [stopItemHeight]);
+    }, [transitioning]);
 
     // Effects
     useEffect(() => {
@@ -124,25 +97,13 @@ function AppContent() {
     }, []);
 
     useEffect(() => {
-        if (selectedStopId && stops.length > 0 && !isScrollingRef.current) {
-            const timer = setTimeout(() => {
-                const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
-                if (stopIndex !== -1) {
-                    debouncedScrollToStop(stopIndex);
-                }
-            }, 300);
-            return () => clearTimeout(timer);
-        }
-    }, [stops, selectedStopId, debouncedScrollToStop]);
-
-    useEffect(() => {
-        return () => {
-            if (scrollTimeoutRef.current) {
-                clearTimeout(scrollTimeoutRef.current);
+        if (transitioning && selectedStopId && stops.length > 0) {
+            const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
+            if (stopIndex !== -1) {
+                scrollToStop(stopIndex);
             }
-            debouncedScrollToStop.cancel();
-        };
-    }, [debouncedScrollToStop]);
+        }
+    }, [stops, selectedStopId, transitioning, scrollToStop]);
 
     // Utility functions
     const isCircularRoute = (routeInfo) => {
@@ -527,40 +488,26 @@ function AppContent() {
                                     <StopItem
                                         item={item}
                                         isSelected={item.stop === selectedStopId}
-                                        onLayout={(event) => handleStopItemLayout(event, item.stop)}
                                         onPress={handleStopPress}
                                     />
                                 )}
                                 keyExtractor={(item) => item.seq.toString()}
                                 contentContainerStyle={styles.listContainer}
-                                getItemLayout={(data, index) => ({
-                                    length: stopItemHeight || 150,
-                                    offset: (stopItemHeight || 150) * index,
-                                    index,
-                                })}
-                                removeClippedSubviews={true}
-                                maxToRenderPerBatch={10}
-                                updateCellsBatchingPeriod={50}
-                                initialNumToRender={10}
-                                windowSize={21}
                                 onScrollToIndexFailed={(info) => {
-                                    if (!isScrollingRef.current) {
-                                        isScrollingRef.current = true;
+                                    if (transitioning) {
                                         listRef.current?.scrollToOffset({
-                                            offset: (stopItemHeight || 150) * info.index,
+                                            offset: info.averageItemLength * info.index,
                                             animated: false,
                                         });
-                                        
                                         setTimeout(() => {
-                                            if (info.index < stops.length) {
-                                                listRef.current?.scrollToIndex({
+                                            if (listRef.current && info.index < stops.length) {
+                                                listRef.current.scrollToIndex({
                                                     index: info.index,
                                                     animated: true,
-                                                    viewPosition: 0.4,
+                                                    viewPosition: 0.3,
                                                     viewOffset: 20
                                                 });
                                             }
-                                            isScrollingRef.current = false;
                                         }, 100);
                                     }
                                 }}
