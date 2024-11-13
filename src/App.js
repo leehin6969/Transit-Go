@@ -138,16 +138,16 @@ function AppContent() {
             setTransitioning(true);
             setBusRoute(route.route);
             setSearchMode('route');
-
+    
             const correctDirection = await determineRouteDirection(route.route, route.dest_en);
             setRouteDirection(correctDirection);
-
+    
             await searchBus(route.route, correctDirection);
-
+    
             requestAnimationFrame(() => {
                 setSelectedStopId(stop.stop);
             });
-
+    
         } catch (error) {
             console.error('Error in handleRoutePress:', error);
             Alert.alert('Error', 'Failed to load route information');
@@ -403,16 +403,17 @@ function AppContent() {
         }
     };
 
-    const renderStopItem = ({ item }) => (
+    const renderStopItem = useCallback(({ item }) => (
         <StopItem
             item={item}
             isSelected={item.stop === selectedStopId}
             onPress={handleStopPress}
             showModal={showModal}
             hideModal={hideModal}
+            onRoutePress={handleRoutePress}
         />
-    );
-
+    ), [selectedStopId, handleStopPress, showModal, hideModal, handleRoutePress]);
+    
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
@@ -582,8 +583,11 @@ function AppContent() {
             {/* Modal Container */}
             {modalContent && (
                 <View style={[
-                    StyleSheet.absoluteFill,
-                    styles.modalContainer
+                    StyleSheet.absoluteFillObject,
+                    {
+                        backgroundColor: 'white',
+                        zIndex: 9999 // Ensure modal is above everything
+                    }
                 ]}>
                     {modalContent}
                 </View>

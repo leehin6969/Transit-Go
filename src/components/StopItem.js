@@ -9,7 +9,7 @@ import { useLanguage } from './Header';
 import StopRoutes from './StopRoutes';
 import StreetViewButton from './StreetViewButton';
 
-const StopItem = ({ item, isSelected, onPress, showModal, hideModal }) => {
+const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePress = () => {} }) => {
     const { getLocalizedText } = useLanguage();
     const { etaData, isUpdating } = useEtaUpdates('route', item.route, item.stop);
     const { width: screenWidth } = useWindowDimensions();
@@ -73,6 +73,10 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal }) => {
                     sc: item.name_sc
                 })}
                 onBack={hideModal}
+                onRoutePress={(route) => {
+                    hideModal();
+                    onRoutePress(route, item); // Pass the item as stop info
+                }}
             />
         );
     };
@@ -230,7 +234,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal }) => {
 
                                 <TouchableOpacity
                                     style={styles.actionButton}
-                                    onPress={handleShowRoutes}
+                                    onPress={handleShowRoutes} // This calls our new function
                                 >
                                     <MaterialIcons name="list" size={20} color="#0066cc" />
                                     <Text style={styles.actionButtonText}>Routes</Text>

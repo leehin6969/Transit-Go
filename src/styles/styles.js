@@ -332,12 +332,22 @@ export const styles = StyleSheet.create({
     },
     modalContainer: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#f5f5f5',
-        zIndex: 1000,
+        backgroundColor: 'white',
+        zIndex: 9999
     },
-    modalContainer: {
-        backgroundColor: 'rgba(0, 0, 0)', // Semi-transparent background
-        zIndex: 99999999999,
+    modalHeader: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        backgroundColor: 'white',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0'
+    },
+    modalContent: {
+        flex: 1,
+        paddingTop: 56 // Height of the header
     },
     directionToggle: {
         backgroundColor: '#ffffff',
