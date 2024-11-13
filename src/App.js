@@ -12,14 +12,16 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { getRouteDirectionInfo } from './utils/routeServiceCheck';
 
+// Component imports
 import Header, { LanguageProvider } from './components/Header';
 import NearbyStopItem from './components/NearbyStopItem';
 import RouteHeader from './components/RouteHeader';
 import SearchBar from './components/SearchBar';
 import StopItem from './components/StopItem';
+import TrafficInformation from './components/TrafficInformation';
 
+// Utility imports
 import useLocation from './hooks/useLocation';
 import {
     fetchAllStops,
@@ -29,6 +31,7 @@ import {
     fetchRouteStops
 } from './services/api';
 import { calculateDistance } from './utils/distance';
+import { getRouteDirectionInfo } from './utils/routeServiceCheck';
 
 function AppContent() {
     // States
@@ -78,7 +81,6 @@ function AppContent() {
         if (!listRef.current || !transitioning) return;
 
         try {
-            console.log('Scrolling to index:', index);
             listRef.current.scrollToIndex({
                 index,
                 animated: true,
@@ -413,7 +415,7 @@ function AppContent() {
             onRoutePress={handleRoutePress}
         />
     ), [selectedStopId, handleStopPress, showModal, hideModal, handleRoutePress]);
-    
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
@@ -487,6 +489,31 @@ function AppContent() {
                         Near Me
                     </Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[
+                        styles.searchTypeButton,
+                        searchMode === 'traffic' && styles.searchTypeButtonActive,
+                    ]}
+                    onPress={() => {
+                        toggleSearchMode('traffic');
+                        setShowMenu(false);
+                    }}
+                >
+                    <MaterialIcons
+                        name="traffic"
+                        size={24}
+                        color={searchMode === 'traffic' ? '#0066cc' : '#666666'}
+                    />
+                    <Text
+                        style={[
+                            styles.searchTypeText,
+                            searchMode === 'traffic' && styles.searchTypeTextActive,
+                        ]}
+                    >
+                        Traffic Info
+                    </Text>
+                </TouchableOpacity>
             </Animated.View>
 
             {searchMode === 'route' ? (
@@ -509,8 +536,7 @@ function AppContent() {
                                     routeDetails={routeDetails}
                                     routeDirection={routeDirection}
                                     onToggle={toggleDirection}
-                                    isCircular={routeInfo?.dest_en?.includes('CIRCULAR')}
-                                    disabled={loading || (!routeDetails.inbound && !routeInfo?.dest_en?.includes('CIRCULAR'))}
+                                    disabled={loading}
                                 />
                             )}
                             <FlatList
@@ -519,29 +545,11 @@ function AppContent() {
                                 renderItem={renderStopItem}
                                 keyExtractor={(item) => item.seq.toString()}
                                 contentContainerStyle={styles.listContainer}
-                                onScrollToIndexFailed={(info) => {
-                                    if (transitioning) {
-                                        listRef.current?.scrollToOffset({
-                                            offset: info.averageItemLength * info.index,
-                                            animated: false,
-                                        });
-                                        setTimeout(() => {
-                                            if (listRef.current && info.index < stops.length) {
-                                                listRef.current.scrollToIndex({
-                                                    index: info.index,
-                                                    animated: true,
-                                                    viewPosition: 0.3,
-                                                    viewOffset: 20
-                                                });
-                                            }
-                                        }, 100);
-                                    }
-                                }}
                             />
                         </>
                     )}
                 </>
-            ) : (
+            ) : searchMode === 'nearby' ? (
                 <View style={styles.nearbyContainer}>
                     {locationLoading || loading ? (
                         <ActivityIndicator size="large" color="#0066cc" style={styles.loader} />
@@ -554,12 +562,12 @@ function AppContent() {
                                 <TouchableOpacity
                                     style={styles.refreshButton}
                                     onPress={refreshNearbyStops}
-                                    disabled={loading || transitioning}
+                                    disabled={loading}
                                 >
                                     <MaterialIcons
                                         name="refresh"
                                         size={24}
-                                        color={loading || transitioning ? '#cccccc' : '#0066cc'}
+                                        color={loading ? '#cccccc' : '#0066cc'}
                                     />
                                 </TouchableOpacity>
                             </View>
@@ -578,7 +586,9 @@ function AppContent() {
                         </>
                     )}
                 </View>
-            )}
+            ) : searchMode === 'traffic' ? (
+                <TrafficInformation />
+            ) : null}
 
             {/* Modal Container */}
             {modalContent && (
@@ -586,7 +596,7 @@ function AppContent() {
                     StyleSheet.absoluteFillObject,
                     {
                         backgroundColor: 'white',
-                        zIndex: 9999 // Ensure modal is above everything
+                        zIndex: 9999
                     }
                 ]}>
                     {modalContent}

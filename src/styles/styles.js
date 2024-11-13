@@ -349,6 +349,24 @@ export const styles = StyleSheet.create({
         flex: 1,
         paddingTop: 56 // Height of the header
     },
+    searchTypeButtons: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 2,
+    },
+    searchTypeButton: {
+        padding: 6,
+        borderRadius: 6,
+    },
+    searchTypeButtonActive: {
+        backgroundColor: '#ffffff',
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 1,
+    },
     directionToggle: {
         backgroundColor: '#ffffff',
         marginHorizontal: 16,
@@ -573,6 +591,7 @@ export const styles = StyleSheet.create({
     menuButton: {
         padding: 4,
         borderRadius: 4,
+        marginLeft: 4
     },
     searchTypeContainer: {
         flexDirection: 'row',
