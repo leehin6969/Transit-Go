@@ -2,6 +2,7 @@
   "expo": {
     "name": "transit",
     "slug": "transit",
+    "newArchEnabled": true,
     "plugins": [
       [
         "expo-location",

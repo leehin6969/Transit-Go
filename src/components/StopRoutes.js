@@ -1,3 +1,5 @@
+// StopRoutes.js
+
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
@@ -9,9 +11,9 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { fetchAllRouteStops, fetchRouteInfo } from '../services/api';
 import { useLanguage } from './Header';
 
-const BASE_URL = 'https://data.etabus.gov.hk/v1/transport/kmb';
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const HEADER_HEIGHT = 56;
 
@@ -19,62 +21,80 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
     const [routes, setRoutes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [retrying, setRetrying] = useState(false);
     const { getLocalizedText } = useLanguage();
 
-    useEffect(() => {
-        const fetchRoutes = async () => {
-            try {
-                setLoading(true);
-                const response = await fetch(`${BASE_URL}/route-stop`);
-                const data = await response.json();
-                
-                if (data.data) {
-                    const stopRoutes = data.data
-                        .filter(route => route.stop === stopId)
-                        .map(route => ({
-                            route: route.route,
-                            seq: route.seq,
-                            bound: route.bound,
-                            service_type: route.service_type
-                        }));
-
-                    const routesWithDetails = await Promise.all(
-                        stopRoutes.map(async (route) => {
-                            const direction = route.bound === 'O' ? 'outbound' : 'inbound';
-                            const routeResponse = await fetch(
-                                `${BASE_URL}/route/${route.route}/${direction}/${route.service_type}`
-                            );
-                            const routeData = await routeResponse.json();
-                            
-                            return {
-                                ...route,
-                                dest_en: routeData.data?.dest_en,
-                                dest_tc: routeData.data?.dest_tc,
-                                dest_sc: routeData.data?.dest_sc,
-                                orig_en: routeData.data?.orig_en,
-                                orig_tc: routeData.data?.orig_tc,
-                                orig_sc: routeData.data?.orig_sc
-                            };
-                        })
-                    );
-
-                    const sortedRoutes = routesWithDetails.sort((a, b) => {
-                        const [aNum, aStr] = a.route.match(/(\d+)([A-Za-z]*)/).slice(1);
-                        const [bNum, bStr] = b.route.match(/(\d+)([A-Za-z]*)/).slice(1);
-                        const numCompare = parseInt(aNum) - parseInt(bNum);
-                        return numCompare !== 0 ? numCompare : aStr.localeCompare(bStr);
-                    });
-
-                    setRoutes(sortedRoutes);
-                }
-            } catch (err) {
-                console.error('Error fetching routes:', err);
-                setError('Failed to load routes');
-            } finally {
-                setLoading(false);
+    const fetchRoutes = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            console.log('Fetching routes for stop:', stopId);
+            const routeStopsData = await fetchAllRouteStops();
+            
+            if (!routeStopsData) {
+                throw new Error('No route data received');
             }
-        };
 
+            // Filter routes for this stop
+            const stopRoutes = routeStopsData
+                .filter(route => route.stop === stopId)
+                .map(route => ({
+                    route: route.route,
+                    seq: route.seq,
+                    bound: route.bound,
+                    service_type: route.service_type
+                }));
+
+            // Fetch details for each route
+            const routesWithDetails = await Promise.all(
+                stopRoutes.map(async (route) => {
+                    try {
+                        const direction = route.bound === 'O' ? 'outbound' : 'inbound';
+                        const routeData = await fetchRouteInfo(route.route, direction, route.service_type);
+                        
+                        return {
+                            ...route,
+                            dest_en: routeData?.dest_en,
+                            dest_tc: routeData?.dest_tc,
+                            dest_sc: routeData?.dest_sc,
+                            orig_en: routeData?.orig_en,
+                            orig_tc: routeData?.orig_tc,
+                            orig_sc: routeData?.orig_sc
+                        };
+                    } catch (error) {
+                        console.warn(`Failed to fetch details for route ${route.route}:`, error);
+                        return route; // Return basic route info if details fetch fails
+                    }
+                })
+            );
+
+            // Sort routes numerically and alphabetically
+            const sortedRoutes = routesWithDetails
+                .filter(route => route.dest_en) // Filter out routes with missing details
+                .sort((a, b) => {
+                    const [aNum, aStr] = a.route.match(/(\d+)([A-Za-z]*)/).slice(1);
+                    const [bNum, bStr] = b.route.match(/(\d+)([A-Za-z]*)/).slice(1);
+                    const numCompare = parseInt(aNum) - parseInt(bNum);
+                    return numCompare !== 0 ? numCompare : aStr.localeCompare(bStr);
+                });
+
+            setRoutes(sortedRoutes);
+        } catch (error) {
+            console.error('Error in fetchRoutes:', error);
+            setError(error.message || 'Failed to load routes');
+        } finally {
+            setLoading(false);
+            setRetrying(false);
+        }
+    };
+
+    const handleRetry = () => {
+        setRetrying(true);
+        fetchRoutes();
+    };
+
+    useEffect(() => {
         fetchRoutes();
     }, [stopId]);
 
@@ -99,6 +119,35 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
         }
     };
 
+    if (loading) {
+        return (
+            <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#0066cc" />
+                <Text style={styles.loadingText}>
+                    {retrying ? 'Retrying...' : 'Loading routes...'}
+                </Text>
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View style={styles.centerContainer}>
+                <MaterialIcons name="error-outline" size={48} color="#dc2626" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={handleRetry}
+                    disabled={retrying}
+                >
+                    <Text style={styles.retryButtonText}>
+                        {retrying ? 'Retrying...' : 'Retry'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
             <View style={styles.contentContainer}>
@@ -113,33 +162,18 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                     <View style={styles.headerTextContainer}>
                         <Text style={styles.title}>{stopName}</Text>
                         <Text style={styles.subtitle}>
-                            {routes.length} routes available
+                            {routes.length} {routes.length === 1 ? 'route' : 'routes'} available
                         </Text>
                     </View>
                 </View>
 
-                {/* Scrollable Content */}
+                {/* Routes List */}
                 <ScrollView 
                     style={styles.routesList}
                     contentContainerStyle={styles.routesListContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    {loading ? (
-                        <View style={styles.centerContainer}>
-                            <ActivityIndicator size="large" color="#0066cc" />
-                            <Text style={styles.loadingText}>Loading routes...</Text>
-                        </View>
-                    ) : error ? (
-                        <View style={styles.centerContainer}>
-                            <Text style={styles.errorText}>{error}</Text>
-                            <TouchableOpacity 
-                                onPress={() => window.location.reload()}
-                                style={styles.retryButton}
-                            >
-                                <Text style={styles.retryButtonText}>Retry</Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : routes.length === 0 ? (
+                    {routes.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <MaterialIcons name="info-outline" size={48} color="#999999" />
                             <Text style={styles.emptyText}>No routes available at this stop</Text>
@@ -209,12 +243,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 16,
     },
     header: {
         flexDirection: 'row',
@@ -298,6 +326,12 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignSelf: 'flex-start',
     },
+    centerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 16,
+    },
     loadingText: {
         marginTop: 8,
         color: '#666666',
@@ -305,6 +339,7 @@ const styles = StyleSheet.create({
     },
     errorText: {
         color: '#dc2626',
+        textAlign: 'center',
         marginBottom: 16,
         fontSize: 16,
     },
