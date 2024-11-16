@@ -1,20 +1,30 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import {
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useLanguage } from './Header';
 
 const API_ENDPOINT = "https://mjqx5en68h.execute-api.us-east-2.amazonaws.com/prod/incidents";
 
 const TrafficInformation = () => {
     const [incidents, setIncidents] = useState([]);
+    const [groupedIncidents, setGroupedIncidents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [nextToken, setNextToken] = useState(null);
+    const [expandedGroups, setExpandedGroups] = useState(new Set());
     const { language } = useLanguage();
-    const [selectedDate, setSelectedDate] = useState(null);
-    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [isDatePickerVisible, setDatePickerVisible] = useState(false);
 
-    // Function to parse DynamoDB item
     const parseDynamoDBItem = (item) => {
         if (Array.isArray(item)) {
             return item.map(parseDynamoDBItem);
@@ -24,24 +34,18 @@ const TrafficInformation = () => {
                 const key = keys[0];
                 const value = item[key];
                 switch (key) {
-                    case 'S':
-                        return value;
-                    case 'N':
-                        return Number(value);
-                    case 'BOOL':
-                        return Boolean(value);
-                    case 'NULL':
-                        return null;
-                    case 'L':
-                        return value.map(parseDynamoDBItem);
+                    case 'S': return value;
+                    case 'N': return Number(value);
+                    case 'BOOL': return Boolean(value);
+                    case 'NULL': return null;
+                    case 'L': return value.map(parseDynamoDBItem);
                     case 'M':
                         const map = {};
                         for (const k in value) {
                             map[k] = parseDynamoDBItem(value[k]);
                         }
                         return map;
-                    default:
-                        return value;
+                    default: return value;
                 }
             } else {
                 const obj = {};
@@ -50,9 +54,8 @@ const TrafficInformation = () => {
                 }
                 return obj;
             }
-        } else {
-            return item;
         }
+        return item;
     };
 
     const getStatusColor = useCallback((status) => {
@@ -64,6 +67,34 @@ const TrafficInformation = () => {
         return styles.statusNew;
     }, [language]);
 
+    const groupAndSortIncidents = useCallback((incidentsList) => {
+        // Group incidents by incidentNumber
+        const groups = incidentsList.reduce((acc, incident) => {
+            const groupKey = incident.incidentNumber;
+            if (!acc[groupKey]) {
+                acc[groupKey] = [];
+            }
+            acc[groupKey].push(incident);
+            return acc;
+        }, {});
+
+        // Sort incidents within each group by date (newest first)
+        Object.keys(groups).forEach(key => {
+            groups[key].sort((a, b) =>
+                new Date(b.announcementDate) - new Date(a.announcementDate)
+            );
+        });
+
+        // Convert to array and sort groups by their latest update
+        return Object.entries(groups)
+            .map(([incidentNumber, incidents]) => ({
+                incidentNumber,
+                incidents,
+                latestDate: new Date(incidents[0].announcementDate)
+            }))
+            .sort((a, b) => b.latestDate - a.latestDate);
+    }, []);
+
     const fetchIncidents = useCallback(async (refresh = false) => {
         try {
             setLoading(true);
@@ -74,28 +105,15 @@ const TrafficInformation = () => {
                 ...(refresh ? {} : nextToken ? { nextToken } : {})
             });
 
-            //console.log('Fetching from:', `${API_ENDPOINT}?${queryParams}`);r
-
             const response = await fetch(`${API_ENDPOINT}?${queryParams}`);
             const responseData = await response.json();
-            
-            //console.log('Raw response:', responseData);
 
             if (!response.ok || responseData.error) {
-                throw new Error(
-                    responseData.details || 
-                    responseData.error || 
-                    'Failed to fetch traffic updates'
-                );
+                throw new Error(responseData.details || responseData.error || 'Failed to fetch traffic updates');
             }
 
-            const data = typeof responseData.body === 'string' 
-                ? JSON.parse(responseData.body) 
-                : responseData;
+            const data = typeof responseData.body === 'string' ? JSON.parse(responseData.body) : responseData;
 
-            //console.log('Processed data:', data);
-
-            // Parse DynamoDB items
             const processedIncidents = (data.items || []).map(item => {
                 const parsedItem = parseDynamoDBItem(item);
                 return {
@@ -104,28 +122,21 @@ const TrafficInformation = () => {
                 };
             });
 
-            const newIncidents = refresh 
-                ? processedIncidents
-                : [...incidents, ...processedIncidents];
-
-            // Remove duplicates based on id
+            const newIncidents = refresh ? processedIncidents : [...incidents, ...processedIncidents];
             const uniqueIncidents = Array.from(
-                new Map(newIncidents.map(item => [item.id, item])).values()
+                new Map(newIncidents.map(item => [item.uniqueId, item])).values()
             );
 
-            // Sort the incidents by announcementDate in descending order
-            uniqueIncidents.sort((a, b) => new Date(b.announcementDate) - new Date(a.announcementDate));
-
             setIncidents(uniqueIncidents);
+            setGroupedIncidents(groupAndSortIncidents(uniqueIncidents));
             setNextToken(data.nextToken);
-            
         } catch (error) {
             console.error('Error fetching incidents:', error);
             setError(error.message || 'Failed to load traffic updates. Please try again later.');
         } finally {
             setLoading(false);
         }
-    }, [nextToken, incidents]);
+    }, [nextToken, incidents, groupAndSortIncidents]);
 
     useEffect(() => {
         fetchIncidents(true);
@@ -133,29 +144,61 @@ const TrafficInformation = () => {
         return () => clearInterval(interval);
     }, [language]);
 
-    const renderIncident = useCallback(({ item }) => {
+    const toggleGroupExpansion = (incidentNumber) => {
+        setExpandedGroups(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(incidentNumber)) {
+                newSet.delete(incidentNumber);
+            } else {
+                newSet.add(incidentNumber);
+            }
+            return newSet;
+        });
+    };
+
+    const renderIncidentCard = useCallback((incident, isLatest = false) => {
         const lang = language === 'en' ? 'en' : 'cn';
-        
+
         const getContent = (field) => {
-            if (!item[field]) return '';
-            return item[field][lang] || '';
+            if (!incident[field]) return '';
+            return incident[field][lang] || '';
         };
-        
+
         const getNestedContent = (field, subfield) => {
-            if (!item[field] || !item[field][subfield]) return '';
-            return item[field][subfield][lang] || '';
+            if (!incident[field] || !incident[field][subfield]) return '';
+            return incident[field][subfield][lang] || '';
         };
 
         return (
-            <View style={styles.incidentContainer}>
+            <View style={[
+                styles.incidentCard,
+                !isLatest && styles.historicalCard
+            ]}>
                 <View style={styles.header}>
-                    <Text style={styles.heading}>{getContent('heading')}</Text>
-                    <View style={[styles.statusContainer, getStatusColor(item.status)]}>
-                        <Text style={styles.statusText}>
-                            {getContent('status')}
-                        </Text>
+                    <View style={styles.headerMain}>
+                        {isLatest && (
+                            <Text style={styles.incidentNumber}>
+                                {incident.incidentNumber}
+                            </Text>
+                        )}
+                        <View style={[
+                            styles.statusContainer,
+                            getStatusColor(incident.status)
+                        ]}>
+                            <Text style={styles.statusText}>
+                                {getContent('status')}
+                            </Text>
+                        </View>
                     </View>
+                    <Text style={styles.date}>
+                        {new Date(incident.announcementDate).toLocaleString(
+                            language === 'en' ? 'en-HK' : 'zh-HK',
+                            { timeZone: 'Asia/Hong_Kong' }
+                        )}
+                    </Text>
                 </View>
+
+                <Text style={styles.heading}>{getContent('heading')}</Text>
 
                 {getContent('detail') && (
                     <Text style={styles.detail}>{getContent('detail')}</Text>
@@ -190,49 +233,80 @@ const TrafficInformation = () => {
                 {getContent('content') && (
                     <Text style={styles.content}>{getContent('content')}</Text>
                 )}
-
-                <Text style={styles.date}>
-                    {new Date(item.announcementDate).toLocaleString(
-                        language === 'en' ? 'en-HK' : 'zh-HK',
-                        { timeZone: 'Asia/Hong_Kong' }
-                    )}
-                </Text>
             </View>
         );
     }, [language, getStatusColor]);
 
-    const handleLoadMore = () => {
-        if (nextToken && !loading) {
-            fetchIncidents();
-        }
+    const renderIncidentGroup = useCallback(({ item }) => {
+        const isExpanded = expandedGroups.has(item.incidentNumber);
+        const hasMultipleIncidents = item.incidents.length > 1;
+
+        return (
+            <View style={styles.groupContainer}>
+                <TouchableOpacity
+                    style={styles.latestIncidentContainer}
+                    onPress={() => hasMultipleIncidents && toggleGroupExpansion(item.incidentNumber)}
+                    activeOpacity={hasMultipleIncidents ? 0.7 : 1}
+                >
+                    {renderIncidentCard(item.incidents[0], true)}
+                    {hasMultipleIncidents && (
+                        <View style={styles.expandButton}>
+                            <MaterialIcons
+                                name={isExpanded ? 'expand-less' : 'expand-more'}
+                                size={24}
+                                color="#666666"
+                            />
+                            <Text style={styles.updateCount}>
+                                {language === 'en'
+                                    ? `${item.incidents.length - 1} previous updates`
+                                    : `${item.incidents.length - 1} 個更新`
+                                }
+                            </Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                {isExpanded && item.incidents.slice(1).map((incident, index) => (
+                    <View key={incident.uniqueId} style={styles.historicalIncidentContainer}>
+                        {renderIncidentCard(incident, false)}
+                    </View>
+                ))}
+            </View>
+        );
+    }, [expandedGroups, renderIncidentCard, language]);
+
+    const showDatePicker = () => {
+        setDatePickerVisible(true);
     };
 
-    const handleRefresh = () => {
-        fetchIncidents(true);
+    const hideDatePicker = () => {
+        setDatePickerVisible(false);
     };
 
-    const onDateChange = (event, date) => {
-        setShowDatePicker(false);
-        if (date) {
-            setSelectedDate(date);
-        }
-    };
-
-    const openDatePicker = () => {
-        setShowDatePicker(true);
+    const handleConfirm = (date) => {
+        setSelectedDate(date);
+        hideDatePicker();
     };
 
     const clearDateFilter = () => {
-        setSelectedDate(null);
+        setSelectedDate(new Date());
     };
 
-    // Compute filtered incidents
-    const filteredIncidents = selectedDate
-        ? incidents.filter(incident => {
-            const incidentDate = new Date(incident.announcementDate);
-            return incidentDate.toDateString() === selectedDate.toDateString();
-        })
-        : incidents;
+    const isToday = (date) => {
+        const today = new Date();
+        return date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear();
+    };
+
+    const filteredGroups = groupedIncidents.filter(group => {
+        const groupDate = new Date(group.latestDate);
+        return (
+            groupDate.getFullYear() === selectedDate.getFullYear() &&
+            groupDate.getMonth() === selectedDate.getMonth() &&
+            groupDate.getDate() === selectedDate.getDate()
+        );
+    });
 
     if (loading && incidents.length === 0) {
         return (
@@ -249,9 +323,9 @@ const TrafficInformation = () => {
         return (
             <View style={styles.centered}>
                 <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.retryButton}
-                    onPress={handleRefresh}
+                    onPress={() => fetchIncidents(true)}
                 >
                     <Text style={styles.retryButtonText}>
                         {language === 'en' ? 'Retry' : '重試'}
@@ -264,40 +338,68 @@ const TrafficInformation = () => {
     return (
         <View style={styles.container}>
             <View style={styles.filterContainer}>
-                <TouchableOpacity onPress={openDatePicker} style={styles.datePickerButton}>
+                <TouchableOpacity
+                    onPress={showDatePicker}
+                    style={styles.datePickerButton}
+                >
                     <Text style={styles.filterText}>
-                        {selectedDate
-                            ? selectedDate.toLocaleDateString(language === 'en' ? 'en-HK' : 'zh-HK')
-                            : (language === 'en' ? 'Select Date' : '選擇日期')}
+                        {selectedDate.toLocaleDateString(
+                            language === 'en' ? 'en-HK' : 'zh-HK',
+                            { timeZone: 'Asia/Hong_Kong' }
+                        )}
                     </Text>
                 </TouchableOpacity>
-                {selectedDate && (
-                    <TouchableOpacity style={styles.clearFilterButton} onPress={clearDateFilter}>
-                        <Text style={styles.clearFilterButtonText}>
-                            {language === 'en' ? 'Clear' : '清除'}
-                        </Text>
-                    </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                    style={[
+                        styles.clearFilterButton,
+                        isToday(selectedDate) && styles.clearFilterButtonDisabled
+                    ]}
+                    onPress={clearDateFilter}
+                    disabled={isToday(selectedDate)}
+                >
+                    <Text style={[
+                        styles.clearFilterButtonText,
+                        isToday(selectedDate) && styles.clearFilterButtonTextDisabled
+                    ]}>
+                        {language === 'en' ? 'Today' : '今天'}
+                    </Text>
+                </TouchableOpacity>
             </View>
 
-            {showDatePicker && (
-                <DateTimePicker
-                    value={selectedDate || new Date()}
-                    mode="date"
-                    display="default"
-                    onChange={onDateChange}
-                />
-            )}
+            <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="date"
+                onConfirm={handleConfirm}
+                onCancel={hideDatePicker}
+                maximumDate={new Date()}
+                date={selectedDate}
+                display="inline"
+                themeVariant="light"
+                confirmTextIOS={language === 'en' ? 'Confirm' : '確認'}
+                cancelTextIOS={language === 'en' ? 'Cancel' : '取消'}
+            />
 
             <FlatList
-                data={filteredIncidents}
-                renderItem={renderIncident}
-                keyExtractor={item => item.uniqueId}
-                contentContainerStyle={styles.listContainer}
-                onEndReached={handleLoadMore}
+                data={filteredGroups}
+                renderItem={renderIncidentGroup}
+                keyExtractor={item => item.incidentNumber}
+                contentContainerStyle={[
+                    styles.listContainer,
+                    filteredGroups.length === 0 && styles.emptyListContainer
+                ]}
+                onEndReached={() => nextToken && !loading && fetchIncidents()}
                 onEndReachedThreshold={0.5}
                 refreshing={loading}
-                onRefresh={handleRefresh}
+                onRefresh={() => fetchIncidents(true)}
+                ListEmptyComponent={() => (
+                    <View style={styles.emptyStateContainer}>
+                        <Text style={styles.emptyStateText}>
+                            {language === 'en'
+                                ? 'No traffic incidents reported for this date'
+                                : '該日期沒有交通事故報告'}
+                        </Text>
+                    </View>
+                )}
             />
         </View>
     );
@@ -306,6 +408,7 @@ const TrafficInformation = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: '#f5f5f5',
     },
     listContainer: {
         padding: 16,
@@ -314,65 +417,95 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#f2f2f2',
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
     },
     datePickerButton: {
         flex: 1,
-        backgroundColor: '#e0e0e0',
-        padding: 10,
-        borderRadius: 4,
+        backgroundColor: '#f0f7ff',
+        padding: 12,
+        borderRadius: 8,
         alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
     },
     filterText: {
         fontSize: 16,
-        color: '#333',
+        color: '#333333',
+        fontWeight: '500',
     },
     clearFilterButton: {
-        marginLeft: 8,
-        backgroundColor: '#dc2626',
-        padding: 10,
-        borderRadius: 4,
+        marginLeft: 12,
+        backgroundColor: '#0066cc',
+        padding: 12,
+        borderRadius: 8,
+        minWidth: 80,
+        alignItems: 'center',
+    },
+    clearFilterButtonDisabled: {
+        backgroundColor: '#e0e0e0',
     },
     clearFilterButtonText: {
-        color: '#fff',
+        color: '#ffffff',
+        fontWeight: '500',
+        fontSize: 14,
     },
-    incidentContainer: {
+    clearFilterButtonTextDisabled: {
+        color: '#999999',
+    },
+    groupContainer: {
+        marginBottom: 16,
+    },
+    latestIncidentContainer: {
         backgroundColor: '#ffffff',
-        borderRadius: 8,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: 12,
         elevation: 2,
-        shadowColor: '#000',
+        shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.2,
         shadowRadius: 2,
     },
+    historicalIncidentContainer: {
+        marginTop: 1,
+        backgroundColor: '#ffffff',
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
+    },
+    incidentCard: {
+        padding: 16,
+    },
+    historicalCard: {
+        backgroundColor: '#fafafa',
+        borderLeftWidth: 4,
+        borderLeftColor: '#e0e0e0',
+    },
     header: {
+        marginBottom: 12,
+    },
+    headerMain: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 4,
     },
-    heading: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333333',
-        flex: 1,
-        marginRight: 8,
-    },
-    detail: {
+    incidentNumber: {
         fontSize: 14,
+        fontWeight: '600',
         color: '#666666',
-        marginBottom: 8,
+        flex: 1,
     },
     statusContainer: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 6,
+        minWidth: 80,
+        alignItems: 'center',
     },
     statusText: {
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     statusNew: {
         backgroundColor: '#e3f2fd',
@@ -381,39 +514,63 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff3e0',
     },
     statusClosed: {
-        backgroundColor: '#eeeeee',
+        backgroundColor: '#f5f5f5',
+    },
+    date: {
+        fontSize: 12,
+        color: '#999999',
+    },
+    heading: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333333',
+        marginBottom: 8,
+    },
+    detail: {
+        fontSize: 14,
+        color: '#666666',
+        marginBottom: 12,
+        lineHeight: 20,
     },
     location: {
         fontSize: 14,
         color: '#666666',
-        marginBottom: 4,
+        marginBottom: 8,
     },
     district: {
         fontSize: 14,
         color: '#666666',
-        marginBottom: 4,
+        marginBottom: 8,
     },
     direction: {
         fontSize: 14,
         color: '#666666',
-        marginBottom: 4,
+        marginBottom: 8,
     },
     landmark: {
         fontSize: 14,
         color: '#666666',
-        marginBottom: 4,
+        marginBottom: 8,
         fontStyle: 'italic',
     },
     content: {
         fontSize: 14,
         color: '#333333',
-        marginVertical: 8,
+        marginTop: 8,
         lineHeight: 20,
     },
-    date: {
-        fontSize: 12,
-        color: '#999999',
-        marginTop: 4,
+    expandButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 8,
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    updateCount: {
+        fontSize: 14,
+        color: '#666666',
+        marginLeft: 4,
     },
     centered: {
         flex: 1,
@@ -422,9 +579,9 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     loadingText: {
-        marginTop: 8,
+        marginTop: 12,
         color: '#666666',
-        fontSize: 14, 
+        fontSize: 14,
     },
     errorText: {
         color: '#dc2626',
@@ -436,11 +593,28 @@ const styles = StyleSheet.create({
         backgroundColor: '#0066cc',
         paddingHorizontal: 16,
         paddingVertical: 8,
-        borderRadius: 4,
+        borderRadius: 8,
     },
     retryButtonText: {
         color: '#ffffff',
         fontWeight: '500',
+        fontSize: 14,
+    },
+    emptyListContainer: {
+        flexGrow: 1,
+        justifyContent: 'center',
+    },
+    emptyStateContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 32,
+    },
+    emptyStateText: {
+        fontSize: 16,
+        color: '#666666',
+        textAlign: 'center',
+        lineHeight: 24,
     },
 });
 

@@ -3,20 +3,24 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useEtaUpdates } from '../hooks/useEtaUpdates';
+import useLocation from '../hooks/useLocation';
 import { ETAHeartbeat } from '../styles/ETAHeartbeat';
+import { calculateDistance, formatDistance } from '../utils/distance';
 import { formatEta, getEtaColor } from '../utils/etaFormatting';
 import { useLanguage } from './Header';
 import StopRoutes from './StopRoutes';
 import StreetViewButton from './StreetViewButton';
 
-const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePress = () => {} }) => {
+const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePress = () => { } }) => {
     const { getLocalizedText } = useLanguage();
     const { etaData, isUpdating } = useEtaUpdates('route', item.route, item.stop);
     const { width: screenWidth } = useWindowDimensions();
     const [showMap, setShowMap] = useState(false);
     const [stopDetails, setStopDetails] = useState(null);
     const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+    const [distanceToStop, setDistanceToStop] = useState(null);
     const mapRef = useRef(null);
+    const { location } = useLocation();
 
     const stopLocation = useMemo(() => {
         if (!stopDetails?.lat || !stopDetails?.long) return null;
@@ -27,6 +31,21 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
             longitudeDelta: 0.002,
         };
     }, [stopDetails]);
+
+    // Calculate distance when location or stop details change
+    useEffect(() => {
+        if (location?.coords && stopDetails?.lat && stopDetails?.long) {
+            const distance = calculateDistance(
+                location.coords.latitude,
+                location.coords.longitude,
+                parseFloat(stopDetails.lat),
+                parseFloat(stopDetails.long)
+            );
+            // Convert to meters and only set if less than 200m
+            const distanceInMeters = distance * 1000;
+            setDistanceToStop(distanceInMeters <= 200 ? distanceInMeters : null);
+        }
+    }, [location, stopDetails]);
 
     const fetchStopDetails = useCallback(async () => {
         if (!item.stop) return;
@@ -47,15 +66,15 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
     }, [item.stop]);
 
     useEffect(() => {
-        if (showMap && !stopDetails && !isLoadingLocation) {
+        // Always fetch stop details for distance calculation
+        if (!stopDetails && !isLoadingLocation) {
             fetchStopDetails();
         }
-    }, [showMap, stopDetails, isLoadingLocation, fetchStopDetails]);
+    }, [stopDetails, isLoadingLocation, fetchStopDetails]);
 
     useEffect(() => {
         if (!isSelected) {
             setShowMap(false);
-            setStopDetails(null);
         }
     }, [isSelected]);
 
@@ -65,7 +84,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
 
     const handleShowRoutes = () => {
         showModal(
-            <StopRoutes 
+            <StopRoutes
                 stopId={item.stop}
                 stopName={getLocalizedText({
                     en: item.name_en,
@@ -75,7 +94,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                 onBack={hideModal}
                 onRoutePress={(route) => {
                     hideModal();
-                    onRoutePress(route, item); // Pass the item as stop info
+                    onRoutePress(route, item);
                 }}
             />
         );
@@ -180,7 +199,11 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
 
     return (
         <View style={styles.container}>
-            <View style={[styles.stopItem, isSelected && styles.selectedStopItem]}>
+            <View style={[
+                styles.stopItem,
+                isSelected && styles.selectedStopItem,
+                distanceToStop !== null && styles.nearbyStopItem
+            ]}>
                 <TouchableOpacity
                     onPress={() => onPress(item.stop)}
                     activeOpacity={0.7}
@@ -189,6 +212,16 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                         <View style={styles.mainContent}>
                             <View style={styles.stopHeader}>
                                 <View style={styles.stopInfo}>
+                                    <View style={styles.stopSequenceContainer}>
+                                        <Text style={styles.stopSequence}>Stop {item.seq}</Text>
+                                        {distanceToStop !== null && (
+                                            <View style={styles.distanceBadge}>
+                                                <Text style={styles.distanceText}>
+                                                    {Math.round(distanceToStop)}m
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
                                     <Text style={styles.stopName} numberOfLines={2}>
                                         {getLocalizedText({
                                             en: item.name_en,
@@ -196,7 +229,6 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                                             sc: item.name_sc
                                         })}
                                     </Text>
-                                    <Text style={styles.stopSequence}>Stop {item.seq}</Text>
                                 </View>
                                 {!isSelected && (
                                     <Text style={styles.destination} numberOfLines={2}>
@@ -234,7 +266,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
 
                                 <TouchableOpacity
                                     style={styles.actionButton}
-                                    onPress={handleShowRoutes} // This calls our new function
+                                    onPress={handleShowRoutes}
                                 >
                                     <MaterialIcons name="list" size={20} color="#0066cc" />
                                     <Text style={styles.actionButtonText}>Routes</Text>
@@ -282,6 +314,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#f0f7ff',
         borderColor: '#0066cc',
     },
+    nearbyStopItem: {
+        backgroundColor: '#f0fdf4',
+        borderColor: '#22c55e',
+        borderWidth: 2,
+    },
     contentWrapper: {
         flexDirection: 'row',
         padding: 16,
@@ -304,15 +341,33 @@ const styles = StyleSheet.create({
         flex: 1,
         marginRight: 8,
     },
-    stopName: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333333',
+    stopSequenceContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         marginBottom: 4,
     },
     stopSequence: {
         fontSize: 12,
         color: '#666666',
+    },
+    distanceBadge: {
+        backgroundColor: '#dcfce7',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#22c55e',
+    },
+    distanceText: {
+        color: '#16a34a',
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    stopName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333333',
     },
     destination: {
         fontSize: 14,
@@ -410,5 +465,6 @@ const styles = StyleSheet.create({
 
 export default memo(StopItem, (prevProps, nextProps) => {
     return prevProps.isSelected === nextProps.isSelected &&
-        prevProps.item.eta === nextProps.item.eta;
+        prevProps.item.eta === nextProps.item.eta &&
+        prevProps.location === nextProps.location;
 });

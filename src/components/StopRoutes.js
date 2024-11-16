@@ -28,10 +28,9 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
         try {
             setLoading(true);
             setError(null);
-            
-            console.log('Fetching routes for stop:', stopId);
+
             const routeStopsData = await fetchAllRouteStops();
-            
+
             if (!routeStopsData) {
                 throw new Error('No route data received');
             }
@@ -43,38 +42,33 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                     route: route.route,
                     seq: route.seq,
                     bound: route.bound,
-                    service_type: route.service_type
+                    service_type: route.service_type || 1
                 }));
 
             // Fetch details for each route
-            const routesWithDetails = await Promise.all(
-                stopRoutes.map(async (route) => {
-                    try {
-                        const direction = route.bound === 'O' ? 'outbound' : 'inbound';
-                        const routeData = await fetchRouteInfo(route.route, direction, route.service_type);
-                        
-                        return {
-                            ...route,
-                            dest_en: routeData?.dest_en,
-                            dest_tc: routeData?.dest_tc,
-                            dest_sc: routeData?.dest_sc,
-                            orig_en: routeData?.orig_en,
-                            orig_tc: routeData?.orig_tc,
-                            orig_sc: routeData?.orig_sc
-                        };
-                    } catch (error) {
-                        console.warn(`Failed to fetch details for route ${route.route}:`, error);
-                        return route; // Return basic route info if details fetch fails
-                    }
-                })
-            );
+            const routePromises = stopRoutes.map(route => {
+                const direction = route.bound === 'O' ? 'outbound' : 'inbound';
+                return fetchRouteInfo(route.route, direction, route.service_type)
+                    .then(data => ({
+                        ...route,
+                        dest_en: data?.dest_en,
+                        dest_tc: data?.dest_tc,
+                        dest_sc: data?.dest_sc,
+                        orig_en: data?.orig_en,
+                        orig_tc: data?.orig_tc,
+                        orig_sc: data?.orig_sc
+                    }))
+                    .catch(() => route); // Keep original route info if fetch fails
+            });
 
-            // Sort routes numerically and alphabetically
+            const routesWithDetails = await Promise.all(routePromises);
+
+            // Sort routes using the same pattern as in SearchBar.js
             const sortedRoutes = routesWithDetails
-                .filter(route => route.dest_en) // Filter out routes with missing details
+                .filter(route => route.dest_en) // Filter valid routes
                 .sort((a, b) => {
-                    const [aNum, aStr] = a.route.match(/(\d+)([A-Za-z]*)/).slice(1);
-                    const [bNum, bStr] = b.route.match(/(\d+)([A-Za-z]*)/).slice(1);
+                    const [aNum = '', aStr = ''] = a.route.match(/(\d+|[A-Za-z]+)/g) || [];
+                    const [bNum = '', bStr = ''] = b.route.match(/(\d+|[A-Za-z]+)/g) || [];
                     const numCompare = parseInt(aNum) - parseInt(bNum);
                     return numCompare !== 0 ? numCompare : aStr.localeCompare(bStr);
                 });
@@ -82,7 +76,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
             setRoutes(sortedRoutes);
         } catch (error) {
             console.error('Error in fetchRoutes:', error);
-            setError(error.message || 'Failed to load routes');
+            setError('Failed to load routes');
         } finally {
             setLoading(false);
             setRetrying(false);
@@ -98,25 +92,27 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
         fetchRoutes();
     }, [stopId]);
 
+
     const handleRoutePress = (route) => {
-        if (onRoutePress) {
-            const stopInfo = {
-                stop: stopId,
-                name_en: stopName,
-                name_tc: stopName,
-                name_sc: stopName
-            };
+        if (!onRoutePress) return;
 
-            const routeInfo = {
-                route: route.route,
-                dest_en: route.dest_en,
-                dest_tc: route.dest_tc,
-                dest_sc: route.dest_sc,
-                bound: route.bound
-            };
+        const stopInfo = {
+            stop: stopId,
+            name_en: stopName,
+            name_tc: stopName,
+            name_sc: stopName
+        };
 
-            onRoutePress(routeInfo, stopInfo);
-        }
+        const routeInfo = {
+            route: route.route,
+            dest_en: route.dest_en,
+            dest_tc: route.dest_tc,
+            dest_sc: route.dest_sc,
+            bound: route.bound,
+            service_type: route.service_type
+        };
+
+        onRoutePress(routeInfo, stopInfo);
     };
 
     if (loading) {
@@ -135,7 +131,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
             <View style={styles.centerContainer}>
                 <MaterialIcons name="error-outline" size={48} color="#dc2626" />
                 <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.retryButton}
                     onPress={handleRetry}
                     disabled={retrying}
@@ -153,7 +149,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
             <View style={styles.contentContainer}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={onBack}
                         style={styles.backButton}
                     >
@@ -168,7 +164,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                 </View>
 
                 {/* Routes List */}
-                <ScrollView 
+                <ScrollView
                     style={styles.routesList}
                     contentContainerStyle={styles.routesListContent}
                     showsVerticalScrollIndicator={false}
@@ -180,7 +176,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                         </View>
                     ) : (
                         routes.map((route, index) => (
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 key={`${route.route}-${route.bound}-${index}`}
                                 style={styles.routeItem}
                                 onPress={() => handleRoutePress(route)}
@@ -189,7 +185,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                                 <View style={styles.routeMainInfo}>
                                     <Text style={styles.routeNumber}>{route.route}</Text>
                                 </View>
-                                
+
                                 <View style={styles.routeDetails}>
                                     <View style={styles.routeTerminals}>
                                         <Text style={styles.terminalText} numberOfLines={1}>
@@ -199,10 +195,10 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                                                 sc: route.orig_sc
                                             })}
                                         </Text>
-                                        <MaterialIcons 
-                                            name="arrow-forward" 
-                                            size={16} 
-                                            color="#666666" 
+                                        <MaterialIcons
+                                            name="arrow-forward"
+                                            size={16}
+                                            color="#666666"
                                             style={styles.arrowIcon}
                                         />
                                         <Text style={styles.terminalText} numberOfLines={1}>

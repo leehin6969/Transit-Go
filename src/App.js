@@ -81,19 +81,31 @@ function AppContent() {
         if (!listRef.current || !transitioning) return;
 
         try {
+            // First try to scroll immediately
             listRef.current.scrollToIndex({
                 index,
                 animated: true,
                 viewPosition: 0.3,
                 viewOffset: 20
             });
-
+        } catch (error) {
+            // If immediate scroll fails, try with a delay
+            console.warn('Initial scroll failed, retrying with delay');
+            setTimeout(() => {
+                if (listRef.current && transitioning) {
+                    listRef.current.scrollToIndex({
+                        index,
+                        animated: true,
+                        viewPosition: 0.3,
+                        viewOffset: 20
+                    });
+                }
+            }, 100);
+        } finally {
+            // Reset transitioning state after a delay
             setTimeout(() => {
                 setTransitioning(false);
             }, 500);
-        } catch (error) {
-            console.warn('Scroll failed:', error);
-            setTransitioning(false);
         }
     }, [transitioning]);
 
@@ -124,7 +136,12 @@ function AppContent() {
         if (transitioning && selectedStopId && stops.length > 0) {
             const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
             if (stopIndex !== -1) {
-                scrollToStop(stopIndex);
+                // Add a small delay to ensure the FlatList is ready
+                setTimeout(() => {
+                    scrollToStop(stopIndex);
+                }, 100);
+            } else {
+                setTransitioning(false);
             }
         }
     }, [stops, selectedStopId, transitioning, scrollToStop]);
@@ -140,16 +157,16 @@ function AppContent() {
             setTransitioning(true);
             setBusRoute(route.route);
             setSearchMode('route');
-    
+
             const correctDirection = await determineRouteDirection(route.route, route.dest_en);
             setRouteDirection(correctDirection);
-    
+
             await searchBus(route.route, correctDirection);
-    
+
             requestAnimationFrame(() => {
                 setSelectedStopId(stop.stop);
             });
-    
+
         } catch (error) {
             console.error('Error in handleRoutePress:', error);
             Alert.alert('Error', 'Failed to load route information');
@@ -416,6 +433,25 @@ function AppContent() {
         />
     ), [selectedStopId, handleStopPress, showModal, hideModal, handleRoutePress]);
 
+    const getItemLayout = useCallback((data, index) => ({
+        length: 100, // Approximate height of each item
+        offset: 130 * index,
+        index,
+    }), []);
+
+    const handleScrollToIndexFailed = useCallback((info) => {
+        const wait = new Promise(resolve => setTimeout(resolve, 500));
+        wait.then(() => {
+            if (listRef.current && !transitioning) {
+                listRef.current.scrollToIndex({
+                    index: info.index,
+                    animated: true,
+                    viewPosition: 0.5
+                });
+            }
+        });
+    }, [transitioning]);
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
@@ -545,6 +581,8 @@ function AppContent() {
                                 renderItem={renderStopItem}
                                 keyExtractor={(item) => item.seq.toString()}
                                 contentContainerStyle={styles.listContainer}
+                                getItemLayout={getItemLayout}
+                                onScrollToIndexFailed={handleScrollToIndexFailed}
                             />
                         </>
                     )}

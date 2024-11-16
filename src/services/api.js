@@ -161,13 +161,13 @@ export async function fetchAllStops() {
         return data.data;
     } catch (error) {
         console.error('API Error (stops):', error);
-        
+
         // Return cached data if available, even if expired
         if (cache.stops.data) {
             console.log('Using expired cache data for stops');
             return cache.stops.data;
         }
-        
+
         throw new Error(`Failed to fetch stop data: ${error.message}`);
     }
 }
@@ -196,12 +196,12 @@ export async function fetchRouteInfo(route, direction = 'outbound', serviceType 
         return data.data;
     } catch (error) {
         console.error('API Error (route-info):', error);
-        
+
         // Return cached data if available
         if (cache.routes.data[`${route}-${direction}-${serviceType}`]) {
             return cache.routes.data[`${route}-${direction}-${serviceType}`];
         }
-        
+
         throw error;
     }
 }
@@ -277,13 +277,13 @@ export async function fetchRouteStops(route, direction = 'outbound', serviceType
         return data.data;
     } catch (error) {
         console.error('Error in fetchRouteStops:', error);
-        
+
         // Return cached data if available
         if (cache.routes.data[`${route}-${direction}-${serviceType}-stops`]) {
             console.log('Using cached route stops data');
             return cache.routes.data[`${route}-${direction}-${serviceType}-stops`];
         }
-        
+
         // If no cache and error persists, throw a user-friendly error
         throw new Error(`Unable to fetch route stops: ${error.message}`);
     }
@@ -313,13 +313,13 @@ export async function fetchNearbyStops(stopId) {
         return data.data;
     } catch (error) {
         console.error('API Error (stop-eta):', error);
-        
+
         // Return cached data if available, even if expired
         if (cache.eta.data[stopId]) {
             console.log('Using expired cache data for stop ETA');
             return cache.eta.data[stopId];
         }
-        
+
         throw error;
     }
 }
@@ -340,7 +340,7 @@ export async function fetchAllRouteStops() {
 
         console.log('Fetching all route stops');
         const data = await fetchWithRetry(endpoint);
-        
+
         if (!data || !data.data || !Array.isArray(data.data)) {
             throw new Error('Invalid response data structure');
         }
@@ -353,13 +353,13 @@ export async function fetchAllRouteStops() {
         return data.data;
     } catch (error) {
         console.error('Error fetching all route stops:', error);
-        
+
         // Return cached data if available
         if (cache.routes.data[cacheKey]) {
             console.log('Using cached all route stops data');
             return cache.routes.data[cacheKey];
         }
-        
+
         throw new Error(`Failed to fetch route stops: ${error.message}`);
     }
 }
