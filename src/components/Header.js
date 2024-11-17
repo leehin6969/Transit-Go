@@ -5,8 +5,8 @@ import { styles } from '../styles/styles';
 
 export const LanguageContext = createContext({
     language: 'en',
-    setLanguage: () => {},
-    getLocalizedText: () => {}
+    setLanguage: () => { },
+    getLocalizedText: () => { }
 });
 
 export const useLanguage = () => useContext(LanguageContext);
@@ -30,37 +30,18 @@ export const LanguageProvider = ({ children }) => {
     );
 };
 
-export default function Header({ 
-    searchMode, 
-    onSearchModeChange, 
-    showMenu, 
-    onMenuPress 
+export default function Header({
+    searchMode,
+    onSearchModeChange,
+    showMenu,
+    onMenuPress,
+    onSettingsPress
 }) {
-    const { language, setLanguage } = useLanguage();
-
-    const toggleLanguage = () => {
-        const nextLanguage = {
-            'en': 'tc',
-            'tc': 'sc',
-            'sc': 'en'
-        }[language];
-        setLanguage(nextLanguage);
-    };
-
-    const getLanguageDisplay = () => {
-        const displays = {
-            'en': 'EN',
-            'tc': '繁',
-            'sc': '简'
-        };
-        return displays[language];
-    };
-
     return (
         <View style={styles.header}>
             <View style={styles.headerContent}>
                 <View style={styles.titleContainer}>
-                    <Text style={styles.title}>KMB</Text>
+                    <Text style={styles.title}>Transit Go</Text>
                     <TouchableOpacity
                         style={styles.menuButton}
                         onPress={onMenuPress}
@@ -116,12 +97,10 @@ export default function Header({
                         </TouchableOpacity>
                     </View>
                     <TouchableOpacity
-                        style={styles.languageButton}
-                        onPress={toggleLanguage}
+                        style={styles.settingsButton}
+                        onPress={onSettingsPress}
                     >
-                        <Text style={styles.languageButtonText}>
-                            {getLanguageDisplay()}
-                        </Text>
+                        <MaterialIcons name="settings" size={24} color="#0066cc" />
                     </TouchableOpacity>
                 </View>
             </View>

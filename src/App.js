@@ -20,6 +20,7 @@ import RouteHeader from './components/RouteHeader';
 import SearchBar from './components/SearchBar';
 import StopItem from './components/StopItem';
 import TrafficInformation from './components/TrafficInformation';
+import SettingsPage from './components/SettingsPage';
 
 // Utility imports
 import useLocation from './hooks/useLocation';
@@ -49,12 +50,17 @@ function AppContent() {
     const [transitioning, setTransitioning] = useState(false);
     const [allRoutes, setAllRoutes] = useState([]);
     const [modalContent, setModalContent] = useState(null);
+    const [showSettings, setShowSettings] = useState(false);
 
     const [showMenu, setShowMenu] = useState(false);
     const [menuHeight] = useState(new Animated.Value(0));
 
     // Refs
     const listRef = useRef(null);
+
+    const handleSettingsPress = () => {
+        setShowSettings(true);
+    };
 
     // Modal handlers
     const showModal = (content) => {
@@ -461,181 +467,193 @@ function AppContent() {
                 onSearchModeChange={toggleSearchMode}
                 showMenu={showMenu}
                 onMenuPress={toggleMenu}
+                onSettingsPress={() => setShowSettings(true)}
             />
 
-            <Animated.View
-                style={[
-                    styles.searchTypeContainer,
-                    {
-                        maxHeight: menuHeight.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, 100]
-                        }),
-                        opacity: menuHeight,
-                        overflow: 'hidden'
-                    }
-                ]}
-            >
-                <TouchableOpacity
-                    style={[
-                        styles.searchTypeButton,
-                        searchMode === 'route' && styles.searchTypeButtonActive,
-                    ]}
-                    onPress={() => {
-                        toggleSearchMode('route');
-                        setShowMenu(false);
-                    }}
-                >
-                    <MaterialIcons
-                        name="directions-bus"
-                        size={24}
-                        color={searchMode === 'route' ? '#0066cc' : '#666666'}
-                    />
-                    <Text
-                        style={[
-                            styles.searchTypeText,
-                            searchMode === 'route' && styles.searchTypeTextActive,
-                        ]}
-                    >
-                        Route Search
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[
-                        styles.searchTypeButton,
-                        searchMode === 'nearby' && styles.searchTypeButtonActive,
-                    ]}
-                    onPress={() => {
-                        toggleSearchMode('nearby');
-                        setShowMenu(false);
-                    }}
-                >
-                    <MaterialIcons
-                        name="near-me"
-                        size={24}
-                        color={searchMode === 'nearby' ? '#0066cc' : '#666666'}
-                    />
-                    <Text
-                        style={[
-                            styles.searchTypeText,
-                            searchMode === 'nearby' && styles.searchTypeTextActive,
-                        ]}
-                    >
-                        Near Me
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[
-                        styles.searchTypeButton,
-                        searchMode === 'traffic' && styles.searchTypeButtonActive,
-                    ]}
-                    onPress={() => {
-                        toggleSearchMode('traffic');
-                        setShowMenu(false);
-                    }}
-                >
-                    <MaterialIcons
-                        name="traffic"
-                        size={24}
-                        color={searchMode === 'traffic' ? '#0066cc' : '#666666'}
-                    />
-                    <Text
-                        style={[
-                            styles.searchTypeText,
-                            searchMode === 'traffic' && styles.searchTypeTextActive,
-                        ]}
-                    >
-                        Traffic Info
-                    </Text>
-                </TouchableOpacity>
-            </Animated.View>
-
-            {searchMode === 'route' ? (
+            {!showSettings && (
                 <>
-                    <SearchBar
-                        busRoute={busRoute}
-                        setBusRoute={setBusRoute}
-                        onSearch={searchBus}
-                        loading={loading}
-                        allRoutes={allRoutes}
-                    />
+                    <Animated.View
+                        style={[
+                            styles.searchTypeContainer,
+                            {
+                                maxHeight: menuHeight.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0, 100]
+                                }),
+                                opacity: menuHeight,
+                                overflow: 'hidden'
+                            }
+                        ]}
+                    >
+                        <TouchableOpacity
+                            style={[
+                                styles.searchTypeButton,
+                                searchMode === 'route' && styles.searchTypeButtonActive,
+                            ]}
+                            onPress={() => {
+                                toggleSearchMode('route');
+                                setShowMenu(false);
+                            }}
+                        >
+                            <MaterialIcons
+                                name="directions-bus"
+                                size={24}
+                                color={searchMode === 'route' ? '#0066cc' : '#666666'}
+                            />
+                            <Text
+                                style={[
+                                    styles.searchTypeText,
+                                    searchMode === 'route' && styles.searchTypeTextActive,
+                                ]}
+                            >
+                                Route Search
+                            </Text>
+                        </TouchableOpacity>
 
-                    {loading ? (
-                        <ActivityIndicator size="large" color="#0066cc" style={styles.loader} />
-                    ) : (
+                        <TouchableOpacity
+                            style={[
+                                styles.searchTypeButton,
+                                searchMode === 'nearby' && styles.searchTypeButtonActive,
+                            ]}
+                            onPress={() => {
+                                toggleSearchMode('nearby');
+                                setShowMenu(false);
+                            }}
+                        >
+                            <MaterialIcons
+                                name="near-me"
+                                size={24}
+                                color={searchMode === 'nearby' ? '#0066cc' : '#666666'}
+                            />
+                            <Text
+                                style={[
+                                    styles.searchTypeText,
+                                    searchMode === 'nearby' && styles.searchTypeTextActive,
+                                ]}
+                            >
+                                Near Me
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.searchTypeButton,
+                                searchMode === 'traffic' && styles.searchTypeButtonActive,
+                            ]}
+                            onPress={() => {
+                                toggleSearchMode('traffic');
+                                setShowMenu(false);
+                            }}
+                        >
+                            <MaterialIcons
+                                name="traffic"
+                                size={24}
+                                color={searchMode === 'traffic' ? '#0066cc' : '#666666'}
+                            />
+                            <Text
+                                style={[
+                                    styles.searchTypeText,
+                                    searchMode === 'traffic' && styles.searchTypeTextActive,
+                                ]}
+                            >
+                                Traffic Info
+                            </Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {searchMode === 'route' ? (
                         <>
-                            {routeInfo && (
-                                <RouteHeader
-                                    routeInfo={routeInfo}
-                                    routeDetails={routeDetails}
-                                    routeDirection={routeDirection}
-                                    onToggle={toggleDirection}
-                                    disabled={loading}
-                                />
+                            <SearchBar
+                                busRoute={busRoute}
+                                setBusRoute={setBusRoute}
+                                onSearch={searchBus}
+                                loading={loading}
+                                allRoutes={allRoutes}
+                            />
+
+                            {loading ? (
+                                <ActivityIndicator size="large" color="#0066cc" style={styles.loader} />
+                            ) : (
+                                <>
+                                    {routeInfo && (
+                                        <RouteHeader
+                                            routeInfo={routeInfo}
+                                            routeDetails={routeDetails}
+                                            routeDirection={routeDirection}
+                                            onToggle={toggleDirection}
+                                            disabled={loading}
+                                        />
+                                    )}
+                                    <FlatList
+                                        ref={listRef}
+                                        data={stops}
+                                        renderItem={renderStopItem}
+                                        keyExtractor={(item) => item.seq.toString()}
+                                        contentContainerStyle={styles.listContainer}
+                                        getItemLayout={getItemLayout}
+                                        onScrollToIndexFailed={handleScrollToIndexFailed}
+                                    />
+                                </>
                             )}
-                            <FlatList
-                                ref={listRef}
-                                data={stops}
-                                renderItem={renderStopItem}
-                                keyExtractor={(item) => item.seq.toString()}
-                                contentContainerStyle={styles.listContainer}
-                                getItemLayout={getItemLayout}
-                                onScrollToIndexFailed={handleScrollToIndexFailed}
-                            />
                         </>
-                    )}
+                    ) : searchMode === 'nearby' ? (
+                        <View style={styles.nearbyContainer}>
+                            {locationLoading || loading ? (
+                                <ActivityIndicator size="large" color="#0066cc" style={styles.loader} />
+                            ) : errorMsg ? (
+                                <Text style={styles.errorText}>{errorMsg}</Text>
+                            ) : (
+                                <>
+                                    <View style={styles.nearbyHeader}>
+                                        <Text style={styles.nearbyTitle}>Nearby Bus Stops</Text>
+                                        <TouchableOpacity
+                                            style={styles.refreshButton}
+                                            onPress={refreshNearbyStops}
+                                            disabled={loading}
+                                        >
+                                            <MaterialIcons
+                                                name="refresh"
+                                                size={24}
+                                                color={loading ? '#cccccc' : '#0066cc'}
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <FlatList
+                                        data={nearbyStops}
+                                        renderItem={({ item }) => (
+                                            <NearbyStopItem
+                                                item={item}
+                                                routes={nearbyRoutes[item.stop]}
+                                                onRoutePress={handleRoutePress}
+                                            />
+                                        )}
+                                        keyExtractor={(item) => item.stop}
+                                        contentContainerStyle={styles.listContainer}
+                                    />
+                                </>
+                            )}
+                        </View>
+                    ) : searchMode === 'traffic' ? (
+                        <TrafficInformation />
+                    ) : null}
                 </>
-            ) : searchMode === 'nearby' ? (
-                <View style={styles.nearbyContainer}>
-                    {locationLoading || loading ? (
-                        <ActivityIndicator size="large" color="#0066cc" style={styles.loader} />
-                    ) : errorMsg ? (
-                        <Text style={styles.errorText}>{errorMsg}</Text>
-                    ) : (
-                        <>
-                            <View style={styles.nearbyHeader}>
-                                <Text style={styles.nearbyTitle}>Nearby Bus Stops</Text>
-                                <TouchableOpacity
-                                    style={styles.refreshButton}
-                                    onPress={refreshNearbyStops}
-                                    disabled={loading}
-                                >
-                                    <MaterialIcons
-                                        name="refresh"
-                                        size={24}
-                                        color={loading ? '#cccccc' : '#0066cc'}
-                                    />
-                                </TouchableOpacity>
-                            </View>
-                            <FlatList
-                                data={nearbyStops}
-                                renderItem={({ item }) => (
-                                    <NearbyStopItem
-                                        item={item}
-                                        routes={nearbyRoutes[item.stop]}
-                                        onRoutePress={handleRoutePress}
-                                    />
-                                )}
-                                keyExtractor={(item) => item.stop}
-                                contentContainerStyle={styles.listContainer}
-                            />
-                        </>
-                    )}
+            )}
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <View style={[
+                    StyleSheet.absoluteFill,
+                    styles.settingsModal
+                ]}>
+                    <SettingsPage onClose={() => setShowSettings(false)} />
                 </View>
-            ) : searchMode === 'traffic' ? (
-                <TrafficInformation />
-            ) : null}
+            )}
 
             {/* Modal Container */}
             {modalContent && (
                 <View style={[
                     StyleSheet.absoluteFillObject,
-                    {
-                        backgroundColor: 'white',
-                        zIndex: 9999
-                    }
+                    styles.modalContainer
                 ]}>
                     {modalContent}
                 </View>

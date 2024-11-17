@@ -22,6 +22,15 @@ export const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '500',
     },
+    settingsButton: {
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: '#f0f7ff',
+    },
+    settingsModal: {
+        backgroundColor: '#ffffff',
+        zIndex: 1000,
+    },
     headerContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
