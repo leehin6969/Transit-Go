@@ -9,13 +9,14 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    SafeAreaView,
+    StatusBar
 } from 'react-native';
 import { fetchAllRouteStops, fetchRouteInfo } from '../services/api';
 import { useLanguage } from './Header';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const HEADER_HEIGHT = 56;
 
 const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
     const [routes, setRoutes] = useState([]);
@@ -58,7 +59,7 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                         orig_tc: data?.orig_tc,
                         orig_sc: data?.orig_sc
                     }))
-                    .catch(() => route); // Keep original route info if fetch fails
+                    .catch(() => route);
             });
 
             const routesWithDetails = await Promise.all(routePromises);
@@ -92,7 +93,6 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
         fetchRoutes();
     }, [stopId]);
 
-
     const handleRoutePress = (route) => {
         if (!onRoutePress) return;
 
@@ -117,37 +117,66 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
 
     if (loading) {
         return (
-            <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#0066cc" />
-                <Text style={styles.loadingText}>
-                    {retrying ? 'Retrying...' : 'Loading routes...'}
-                </Text>
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.container}>
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={onBack}
+                            style={styles.backButton}
+                        >
+                            <MaterialIcons name="arrow-back" size={24} color="#666666" />
+                        </TouchableOpacity>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.title}>{stopName}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.centerContainer}>
+                        <ActivityIndicator size="large" color="#0066cc" />
+                        <Text style={styles.loadingText}>
+                            {retrying ? 'Retrying...' : 'Loading routes...'}
+                        </Text>
+                    </View>
+                </View>
+            </SafeAreaView>
         );
     }
 
     if (error) {
         return (
-            <View style={styles.centerContainer}>
-                <MaterialIcons name="error-outline" size={48} color="#dc2626" />
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={handleRetry}
-                    disabled={retrying}
-                >
-                    <Text style={styles.retryButtonText}>
-                        {retrying ? 'Retrying...' : 'Retry'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            <SafeAreaView style={styles.safeArea}>
+                <View style={styles.container}>
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={onBack}
+                            style={styles.backButton}
+                        >
+                            <MaterialIcons name="arrow-back" size={24} color="#666666" />
+                        </TouchableOpacity>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.title}>{stopName}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.centerContainer}>
+                        <MaterialIcons name="error-outline" size={48} color="#dc2626" />
+                        <Text style={styles.errorText}>{error}</Text>
+                        <TouchableOpacity
+                            style={styles.retryButton}
+                            onPress={handleRetry}
+                            disabled={retrying}
+                        >
+                            <Text style={styles.retryButtonText}>
+                                {retrying ? 'Retrying...' : 'Retry'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={styles.container}>
-            <View style={styles.contentContainer}>
-                {/* Header */}
+        <SafeAreaView style={styles.safeArea}>
+            <View style={styles.container}>
                 <View style={styles.header}>
                     <TouchableOpacity
                         onPress={onBack}
@@ -163,7 +192,6 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                     </View>
                 </View>
 
-                {/* Routes List */}
                 <ScrollView
                     style={styles.routesList}
                     contentContainerStyle={styles.routesListContent}
@@ -218,27 +246,18 @@ const StopRoutes = ({ stopId, stopName, onBack, onRoutePress }) => {
                     )}
                 </ScrollView>
             </View>
-        </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
-        marginTop: HEADER_HEIGHT,
-    },
-    contentContainer: {
-        flex: 1,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        backgroundColor: '#f5f5f5',
-        overflow: 'hidden',
-        elevation: 8,
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
     },
     header: {
         flexDirection: 'row',

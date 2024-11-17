@@ -441,7 +441,7 @@ function AppContent() {
 
     const getItemLayout = useCallback((data, index) => ({
         length: 100, // Approximate height of each item
-        offset: 130 * index,
+        offset: 190 * index,
         index,
     }), []);
 
@@ -652,8 +652,16 @@ function AppContent() {
             {/* Modal Container */}
             {modalContent && (
                 <View style={[
-                    StyleSheet.absoluteFillObject,
-                    styles.modalContainer
+                    StyleSheet.absoluteFill,
+                    {
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: '#f5f5f5',
+                        zIndex: 1000,
+                    }
                 ]}>
                     {modalContent}
                 </View>

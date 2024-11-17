@@ -340,9 +340,13 @@ export const styles = StyleSheet.create({
         backgroundColor: '#cccccc',
     },
     modalContainer: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'white',
-        zIndex: 9999
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: '#f5f5f5',
+        zIndex: 1000,
     },
     modalHeader: {
         position: 'absolute',
