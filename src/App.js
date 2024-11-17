@@ -21,6 +21,7 @@ import SearchBar from './components/SearchBar';
 import StopItem from './components/StopItem';
 import TrafficInformation from './components/TrafficInformation';
 import SettingsPage from './components/SettingsPage';
+import MTRPage from './components/MTR/MTRPage';
 
 // Utility imports
 import useLocation from './hooks/useLocation';
@@ -596,6 +597,8 @@ function AppContent() {
                                 </>
                             )}
                         </>
+                    ) : searchMode === 'mtr' ? (
+                        <MTRPage />
                     ) : searchMode === 'nearby' ? (
                         <View style={styles.nearbyContainer}>
                             {locationLoading || loading ? (

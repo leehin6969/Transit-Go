@@ -72,6 +72,19 @@ export default function Header({
                         <TouchableOpacity
                             style={[
                                 styles.searchTypeButton,
+                                searchMode === 'mtr' && styles.searchTypeButtonActive
+                            ]}
+                            onPress={() => onSearchModeChange('mtr')}
+                        >
+                            <MaterialIcons
+                                name="train"
+                                size={20}
+                                color={searchMode === 'mtr' ? '#0066cc' : '#666666'}
+                            />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.searchTypeButton,
                                 searchMode === 'nearby' && styles.searchTypeButtonActive
                             ]}
                             onPress={() => onSearchModeChange('nearby')}
