@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { TRAFFIC_API_ENDPOINT } from '@env';
 import { MaterialIcons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Animated,
     FlatList,
     StyleSheet,
     Text,
@@ -11,8 +11,7 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useLanguage } from './Header';
-
-const API_ENDPOINT = "https://mjqx5en68h.execute-api.us-east-2.amazonaws.com/prod/incidents";
+const API_ENDPOINT = TRAFFIC_API_ENDPOINT;
 
 const TrafficInformation = () => {
     const [incidents, setIncidents] = useState([]);
