@@ -1,0 +1,145 @@
+{
+  "fares": [
+    {
+      "ST_FROM": "HongKong",
+      "ST_FROM_ID": 44,
+      "ST_TO": "Airport",
+      "ST_TO_ID": 47,
+      "OCT_ADT_FARE": 110,
+      "OCT_CHD_FARE": 55,
+      "SINGLE_ADT_FARE": 115,
+      "SINGLE_CHD_FARE": 57.5
+    },
+    {
+      "ST_FROM": "HongKong",
+      "ST_FROM_ID": 44,
+      "ST_TO": "AsiaWorld-Expo",
+      "ST_TO_ID": 56,
+      "OCT_ADT_FARE": 110,
+      "OCT_CHD_FARE": 55,
+      "SINGLE_ADT_FARE": 115,
+      "SINGLE_CHD_FARE": 57.5
+    },
+    {
+      "ST_FROM": "Kowloon",
+      "ST_FROM_ID": 45,
+      "ST_TO": "Airport",
+      "ST_TO_ID": 47,
+      "OCT_ADT_FARE": 100,
+      "OCT_CHD_FARE": 50,
+      "SINGLE_ADT_FARE": 105,
+      "SINGLE_CHD_FARE": 52.5
+    },
+    {
+      "ST_FROM": "Kowloon",
+      "ST_FROM_ID": 45,
+      "ST_TO": "AsiaWorld-Expo",
+      "ST_TO_ID": 56,
+      "OCT_ADT_FARE": 100,
+      "OCT_CHD_FARE": 50,
+      "SINGLE_ADT_FARE": 105,
+      "SINGLE_CHD_FARE": 52.5
+    },
+    {
+      "ST_FROM": "Tsing Yi",
+      "ST_FROM_ID": 46,
+      "ST_TO": "Airport",
+      "ST_TO_ID": 47,
+      "OCT_ADT_FARE": 65,
+      "OCT_CHD_FARE": 32.5,
+      "SINGLE_ADT_FARE": 70,
+      "SINGLE_CHD_FARE": 35
+    },
+    {
+      "ST_FROM": "Tsing Yi",
+      "ST_FROM_ID": 46,
+      "ST_TO": "AsiaWorld-Expo",
+      "ST_TO_ID": 56,
+      "OCT_ADT_FARE": 65,
+      "OCT_CHD_FARE": 32.5,
+      "SINGLE_ADT_FARE": 70,
+      "SINGLE_CHD_FARE": 35
+    },
+    {
+      "ST_FROM": "Airport",
+      "ST_FROM_ID": 47,
+      "ST_TO": "HongKong",
+      "ST_TO_ID": 44,
+      "OCT_ADT_FARE": 110,
+      "OCT_CHD_FARE": 55,
+      "SINGLE_ADT_FARE": 115,
+      "SINGLE_CHD_FARE": 57.5
+    },
+    {
+      "ST_FROM": "Airport",
+      "ST_FROM_ID": 47,
+      "ST_TO": "Kowloon",
+      "ST_TO_ID": 45,
+      "OCT_ADT_FARE": 100,
+      "OCT_CHD_FARE": 50,
+      "SINGLE_ADT_FARE": 105,
+      "SINGLE_CHD_FARE": 52.5
+    },
+    {
+      "ST_FROM": "Airport",
+      "ST_FROM_ID": 47,
+      "ST_TO": "Tsing Yi",
+      "ST_TO_ID": 46,
+      "OCT_ADT_FARE": 65,
+      "OCT_CHD_FARE": 32.5,
+      "SINGLE_ADT_FARE": 70,
+      "SINGLE_CHD_FARE": 35
+    },
+    {
+      "ST_FROM": "Airport",
+      "ST_FROM_ID": 47,
+      "ST_TO": "AsiaWorld-Expo",
+      "ST_TO_ID": 56,
+      "OCT_ADT_FARE": 5.5,
+      "OCT_CHD_FARE": 2.7,
+      "SINGLE_ADT_FARE": 6,
+      "SINGLE_CHD_FARE": 3
+    },
+    {
+      "ST_FROM": "AsiaWorld-Expo",
+      "ST_FROM_ID": 56,
+      "ST_TO": "HongKong",
+      "ST_TO_ID": 44,
+      "OCT_ADT_FARE": 110,
+      "OCT_CHD_FARE": 55,
+      "SINGLE_ADT_FARE": 115,
+      "SINGLE_CHD_FARE": 57.5
+    },
+    {
+      "ST_FROM": "AsiaWorld-Expo",
+      "ST_FROM_ID": 56,
+      "ST_TO": "Kowloon",
+      "ST_TO_ID": 45,
+      "OCT_ADT_FARE": 100,
+      "OCT_CHD_FARE": 50,
+      "SINGLE_ADT_FARE": 105,
+      "SINGLE_CHD_FARE": 52.5
+    },
+    {
+      "ST_FROM": "AsiaWorld-Expo",
+      "ST_FROM_ID": 56,
+      "ST_TO": "Tsing Yi",
+      "ST_TO_ID": 46,
+      "OCT_ADT_FARE": 65,
+      "OCT_CHD_FARE": 32.5,
+      "SINGLE_ADT_FARE": 70,
+      "SINGLE_CHD_FARE": 35
+    },
+    {
+      "ST_FROM": "AsiaWorld-Expo",
+      "ST_FROM_ID": 56,
+      "ST_TO": "Airport",
+      "ST_TO_ID": 47,
+      "OCT_ADT_FARE": 5.5,
+      "OCT_CHD_FARE": 2.7,
+      "SINGLE_ADT_FARE": 6,
+      "SINGLE_CHD_FARE": 3
+    }
+  ],
+  "updated_at": "2024-11-17T16:13:52.508Z"
+}

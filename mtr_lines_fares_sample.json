@@ -1,0 +1,35 @@
+{
+    "fares": [
+        {
+            "SRC_STATION_NAME": "Central",
+            "SRC_STATION_ID": 1,
+            "DEST_STATION_NAME": "Central",
+            "DEST_STATION_ID": 1,
+            "OCT_ADT_FARE": 0,
+            "OCT_STD_FARE": 0,
+            "OCT_JOYYOU_SIXTY_FARE": 0,
+            "SINGLE_ADT_FARE": 0,
+            "OCT_CON_CHILD_FARE": 0,
+            "OCT_CON_ELDERLY_FARE": 0,
+            "OCT_CON_PWD_FARE": 0,
+            "SINGLE_CON_CHILD_FARE": 0,
+            "SINGLE_CON_ELDERLY_FARE": 0
+        },
+        {
+            "SRC_STATION_NAME": "Central",
+            "SRC_STATION_ID": 1,
+            "DEST_STATION_NAME": "Admiralty",
+            "DEST_STATION_ID": 2,
+            "OCT_ADT_FARE": 4.9,
+            "OCT_STD_FARE": 3.2,
+            "OCT_JOYYOU_SIXTY_FARE": 2,
+            "SINGLE_ADT_FARE": 5,
+            "OCT_CON_CHILD_FARE": 3.2,
+            "OCT_CON_ELDERLY_FARE": 2,
+            "OCT_CON_PWD_FARE": 2,
+            "SINGLE_CON_CHILD_FARE": 3.5,
+            "SINGLE_CON_ELDERLY_FARE": 3.5
+        }
+    ],
+    "updated_at": "2024-11-17T16:12:20.611Z"
+}

@@ -1,3 +1,4 @@
+// src/components/MTR/MTRPage.js
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -19,8 +20,8 @@ import { useLanguage } from '../Header';
 
 const MTRPage = () => {
     // States
-    const [lines, setLines] = useState([]);
     const [selectedLine, setSelectedLine] = useState(null);
+    const [lines, setLines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -39,7 +40,7 @@ const MTRPage = () => {
             const statuses = {};
             for (const line of allLines) {
                 try {
-                    const stations = await MTRService.getLineStations(line.code);
+                    const stations = MTRService.getLineStations(line.code);
                     if (stations && stations.length > 0) {
                         const firstStation = stations[0];
                         const status = await MTRService.getNextTrains(
@@ -122,7 +123,7 @@ const MTRPage = () => {
         );
     }
 
-    if (loading) {
+    if (loading && !refreshing) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.centerContainer}>
@@ -145,6 +146,18 @@ const MTRPage = () => {
                 <View style={styles.centerContainer}>
                     <MaterialIcons name="error-outline" size={48} color="#dc2626" />
                     <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={loadMTRData}
+                    >
+                        <Text style={styles.retryButtonText}>
+                            {getLocalizedText({
+                                en: 'Retry',
+                                tc: '重試',
+                                sc: '重试'
+                            })}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             </SafeAreaView>
         );
@@ -215,11 +228,21 @@ const styles = StyleSheet.create({
         color: '#dc2626',
         textAlign: 'center',
     },
+    retryButton: {
+        marginTop: 16,
+        backgroundColor: '#0066cc',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '500',
+    },
     emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         padding: 32,
+        alignItems: 'center',
     },
     emptyText: {
         marginTop: 16,

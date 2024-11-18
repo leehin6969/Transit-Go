@@ -1,16 +1,18 @@
-import React, { useCallback, useEffect, useState } from 'react';
+// components/MTR/MTRLineDetail.js
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Animated,
     FlatList,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
+    SafeAreaView
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import MTRService from '../../services/mtrService';
 import MTRStationItem from './MTRStationItem';
+import MTRRouteHeader from './MTRRouteHeader';
 import { useLanguage } from '../Header';
 
 const MTRLineDetail = ({ line, onBack }) => {
@@ -22,6 +24,7 @@ const MTRLineDetail = ({ line, onBack }) => {
     const [arrivals, setArrivals] = useState({});
     const [selectedStation, setSelectedStation] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
+    const updateInterval = useRef(null);
 
     // Function to fetch arrivals for all stations
     const fetchArrivals = async () => {
@@ -39,42 +42,70 @@ const MTRLineDetail = ({ line, onBack }) => {
             }
         }
         setArrivals(newArrivals);
+        setRefreshing(false);
     };
 
     // Load initial data
     useEffect(() => {
         const loadData = async () => {
             try {
+                setLoading(true);
+                setError(null);
+
+                // Fetch station data from MTR service
                 const stationData = await MTRService.getLineStations(line.code);
+
+                if (!stationData || stationData.length === 0) {
+                    throw new Error('No stations found for this line');
+                }
+
                 setStations(stationData);
                 await fetchArrivals();
             } catch (err) {
-                setError('Failed to load station information');
                 console.error('Error loading station data:', err);
+                setError('Failed to load station information');
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
+
+        return () => {
+            if (updateInterval.current) {
+                clearInterval(updateInterval.current);
+            }
+        };
     }, [line.code]);
 
-    // Set up periodic refresh
+    // Set up periodic updates
     useEffect(() => {
-        const interval = setInterval(fetchArrivals, 30000); // Refresh every 30 seconds
-        return () => clearInterval(interval);
+        if (stations.length > 0) {
+            fetchArrivals();
+            updateInterval.current = setInterval(fetchArrivals, 30000); // Update every 30 seconds
+
+            return () => {
+                if (updateInterval.current) {
+                    clearInterval(updateInterval.current);
+                }
+            };
+        }
     }, [stations, direction]);
 
-    const handleDirectionToggle = () => {
+    const handleDirectionToggle = useCallback(() => {
         setDirection(prev => prev === 'UP' ? 'DOWN' : 'UP');
-        fetchArrivals();
-    };
+    }, []);
 
-    const handleStationPress = (stationCode) => {
+    const handleStationPress = useCallback((stationCode) => {
         setSelectedStation(stationCode === selectedStation ? null : stationCode);
-    };
+    }, [selectedStation]);
 
-    const renderStationItem = useCallback(({ item }) => (
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchArrivals();
+    }, []);
+
+    const renderStationItem = useCallback(({ item, index }) => (
         <MTRStationItem
             station={item}
             lineColor={line.color}
@@ -82,29 +113,95 @@ const MTRLineDetail = ({ line, onBack }) => {
             isSelected={item.Station_Code === selectedStation}
             onPress={handleStationPress}
             direction={direction}
+            isFirst={index === 0}
+            isLast={index === stations.length - 1}
+            showConnections={true}
         />
-    ), [selectedStation, arrivals, direction, line.color]);
+    ), [selectedStation, arrivals, direction, line.color, stations.length]);
+
+    const getTerminalStations = useCallback(() => {
+        if (!stations.length) return { origin: null, destination: null };
+
+        if (direction === 'UP') {
+            return {
+                origin: stations[0],
+                destination: stations[stations.length - 1]
+            };
+        } else {
+            return {
+                origin: stations[stations.length - 1],
+                destination: stations[0]
+            };
+        }
+    }, [stations, direction]);
 
     if (loading) {
         return (
-            <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#0066cc" />
-                <Text style={styles.loadingText}>Loading station information...</Text>
-            </View>
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={onBack}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <MaterialIcons name="arrow-back" size={24} color="#666666" />
+                    </TouchableOpacity>
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.title}>
+                            {getLocalizedText({
+                                en: line.name_en,
+                                tc: line.name_tc,
+                                sc: line.name_tc
+                            })}
+                        </Text>
+                    </View>
+                </View>
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator size="large" color="#0066cc" />
+                    <Text style={styles.loadingText}>Loading station information...</Text>
+                </View>
+            </SafeAreaView>
         );
     }
 
     if (error) {
         return (
-            <View style={styles.centerContainer}>
-                <MaterialIcons name="error-outline" size={48} color="#dc2626" />
-                <Text style={styles.errorText}>{error}</Text>
-            </View>
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={onBack}
+                    >
+                        <MaterialIcons name="arrow-back" size={24} color="#666666" />
+                    </TouchableOpacity>
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.title}>
+                            {getLocalizedText({
+                                en: line.name_en,
+                                tc: line.name_tc,
+                                sc: line.name_tc
+                            })}
+                        </Text>
+                    </View>
+                </View>
+                <View style={styles.centerContainer}>
+                    <MaterialIcons name="error-outline" size={48} color="#dc2626" />
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => setLoading(true)}
+                    >
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
         );
     }
 
+    const terminals = getTerminalStations();
+
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -112,7 +209,6 @@ const MTRLineDetail = ({ line, onBack }) => {
                 >
                     <MaterialIcons name="arrow-back" size={24} color="#666666" />
                 </TouchableOpacity>
-
                 <View style={styles.titleContainer}>
                     <Text style={styles.title}>
                         {getLocalizedText({
@@ -124,41 +220,14 @@ const MTRLineDetail = ({ line, onBack }) => {
                 </View>
             </View>
 
-            <View style={styles.directionToggle}>
-                <TouchableOpacity
-                    style={[
-                        styles.directionButton,
-                        direction === 'UP' && styles.directionButtonActive,
-                        { borderColor: line.color }
-                    ]}
-                    onPress={() => setDirection('UP')}
-                >
-                    <Text style={[
-                        styles.directionText,
-                        direction === 'UP' && styles.directionTextActive,
-                        { color: direction === 'UP' ? line.color : '#666666' }
-                    ]}>
-                        UP
-                    </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[
-                        styles.directionButton,
-                        direction === 'DOWN' && styles.directionButtonActive,
-                        { borderColor: line.color }
-                    ]}
-                    onPress={() => setDirection('DOWN')}
-                >
-                    <Text style={[
-                        styles.directionText,
-                        direction === 'DOWN' && styles.directionTextActive,
-                        { color: direction === 'DOWN' ? line.color : '#666666' }
-                    ]}>
-                        DOWN
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            <MTRRouteHeader
+                line={line}
+                direction={direction}
+                origin={terminals.origin}
+                destination={terminals.destination}
+                onToggle={handleDirectionToggle}
+                disabled={loading}
+            />
 
             <FlatList
                 data={stations}
@@ -166,9 +235,14 @@ const MTRLineDetail = ({ line, onBack }) => {
                 keyExtractor={item => item.Station_Code}
                 contentContainerStyle={styles.listContainer}
                 refreshing={refreshing}
-                onRefresh={fetchArrivals}
+                onRefresh={handleRefresh}
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No stations available</Text>
+                    </View>
+                }
             />
-        </View>
+        </SafeAreaView>
     );
 };
 
@@ -188,6 +262,7 @@ const styles = StyleSheet.create({
     backButton: {
         padding: 8,
         marginRight: 8,
+        borderRadius: 8,
     },
     titleContainer: {
         flex: 1,
@@ -196,28 +271,6 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
         color: '#333333',
-    },
-    directionToggle: {
-        flexDirection: 'row',
-        padding: 16,
-        gap: 8,
-    },
-    directionButton: {
-        flex: 1,
-        padding: 12,
-        borderRadius: 8,
-        borderWidth: 1,
-        alignItems: 'center',
-    },
-    directionButtonActive: {
-        backgroundColor: '#f0f7ff',
-    },
-    directionText: {
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    directionTextActive: {
-        fontWeight: '600',
     },
     listContainer: {
         padding: 16,
@@ -238,7 +291,29 @@ const styles = StyleSheet.create({
         marginTop: 16,
         fontSize: 16,
         color: '#dc2626',
+        textAlign: 'center',
     },
+    retryButton: {
+        marginTop: 16,
+        backgroundColor: '#0066cc',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    emptyContainer: {
+        padding: 32,
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: 16,
+        color: '#666666',
+        textAlign: 'center',
+    }
 });
 
 export default MTRLineDetail;
