@@ -1,8 +1,9 @@
+// components/MTR/MTRStationItem.js
 import React, { memo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useLanguage } from '../Header';
+import MTRService from '../../services/mtrService';
 import { ETAHeartbeat } from '../../styles/ETAHeartbeat';
+import { useLanguage } from '../Header';
 
 const MTRStationItem = ({
     station,
@@ -10,36 +11,55 @@ const MTRStationItem = ({
     arrivals = [],
     isSelected,
     onPress,
-    direction
+    direction,
+    isEndStation = false
 }) => {
-    const { getLocalizedText } = useLanguage();
+    const { getLocalizedText, language } = useLanguage();
 
-    const renderArrival = (arrival) => {
-        if (!arrival || !arrival.time) {
-            return null;
+    const getStationName = (stationCode) => {
+        if (!stationCode) return '';
+
+        // Get all stations from service
+        const allStations = MTRService.getAllStationsMap();
+        const stationInfo = allStations[stationCode];
+        
+        if (stationInfo) {
+            return getLocalizedText({
+                en: stationInfo.English_Name,
+                tc: stationInfo.Chinese_Name,
+                sc: stationInfo.Chinese_Name
+            });
         }
 
-        const mins = Math.floor((new Date(arrival.time) - new Date()) / 60000);
+        // Fallback to code if station not found
+        return stationCode;
+    };
 
-        // Don't show if train has departed
+    const renderArrival = (arrival) => {
+        if (!arrival || !arrival.time) return null;
+
+        const mins = Math.floor((new Date(arrival.time) - new Date()) / 60000);
         if (mins < -1) return null;
 
         return (
             <ETAHeartbeat key={arrival.seq} isUpdating={false}>
                 <View style={styles.arrivalInfo}>
                     <Text style={styles.platformText}>
-                        Platform {arrival.plat}
+                        {language === 'en' ? 
+                            `Platform ${arrival.plat}` : 
+                            `${arrival.plat}號月台`}
                     </Text>
                     <Text style={styles.timeText}>
-                        {mins <= 0 ? 'Arriving' : `${mins} mins`}
+                        {mins <= 0 ? 
+                            (language === 'en' ? 'Arriving' : '即將到達') : 
+                            language === 'en' ? 
+                                `${mins} mins` : 
+                                `${mins}分鐘`
+                        }
                     </Text>
                     {arrival.dest && (
                         <Text style={styles.destinationText}>
-                            → {getLocalizedText({
-                                en: arrival.dest,
-                                tc: arrival.dest_tc || arrival.dest,
-                                sc: arrival.dest_tc || arrival.dest // Using tc for sc as requested
-                            })}
+                            → {getStationName(arrival.dest)}
                         </Text>
                     )}
                 </View>
@@ -59,11 +79,17 @@ const MTRStationItem = ({
         >
             <View style={styles.header}>
                 <View style={styles.stationInfo}>
+                    <Text style={styles.sequenceNumber}>
+                        {language === 'en' ? 
+                            `Station ${station.Sequence}` : 
+                            `第${station.Sequence}站`
+                        }
+                    </Text>
                     <Text style={styles.stationName}>
                         {getLocalizedText({
                             en: station.English_Name,
                             tc: station.Chinese_Name,
-                            sc: station.Chinese_Name // Using tc for sc as requested
+                            sc: station.Chinese_Name
                         })}
                     </Text>
                 </View>
@@ -73,9 +99,16 @@ const MTRStationItem = ({
                 {arrivals.length > 0 ? (
                     arrivals.map(renderArrival)
                 ) : (
-                    <Text style={styles.noTrainsText}>
-                        No upcoming trains
-                    </Text>
+                    <View style={styles.endStationNotice}>
+                        <Text style={styles.endStationText}>
+                            {language === 'en' ? 
+                                'End Station' : 
+                                language === 'tc' ? 
+                                    '終點站' : 
+                                    '终点站'
+                            }
+                        </Text>
+                    </View>
                 )}
             </View>
         </TouchableOpacity>
@@ -106,6 +139,12 @@ const styles = StyleSheet.create({
     stationInfo: {
         flex: 1,
     },
+    sequenceNumber: {
+        fontSize: 12,
+        color: '#666666',
+        marginBottom: 4,
+        fontWeight: '500',
+    },
     stationName: {
         fontSize: 16,
         fontWeight: '600',
@@ -119,13 +158,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
         backgroundColor: '#f8f9fa',
-        padding: 8,
+        padding: 12,
         borderRadius: 8,
     },
     platformText: {
         fontSize: 14,
         color: '#666666',
-        minWidth: 80,
+        minWidth: 90,
     },
     timeText: {
         fontSize: 14,
@@ -138,13 +177,17 @@ const styles = StyleSheet.create({
         color: '#666666',
         flex: 1,
     },
-    noTrainsText: {
-        fontSize: 14,
-        color: '#999999',
-        fontStyle: 'italic',
-        textAlign: 'center',
-        padding: 8,
+    endStationNotice: {
+        backgroundColor: '#f8f9fa',
+        padding: 12,
+        borderRadius: 8,
+        alignItems: 'center',
     },
+    endStationText: {
+        fontSize: 14,
+        color: '#666666',
+        fontWeight: '500',
+    }
 });
 
 export default memo(MTRStationItem);

@@ -1,19 +1,18 @@
-// components/MTR/MTRLineDetail.js
+import { MaterialIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    SafeAreaView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
-    SafeAreaView
+    View
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 import MTRService from '../../services/mtrService';
-import MTRStationItem from './MTRStationItem';
-import MTRRouteHeader from './MTRRouteHeader';
 import { useLanguage } from '../Header';
+import MTRRouteHeader from './MTRRouteHeader';
+import MTRStationItem from './MTRStationItem';
 
 const MTRLineDetail = ({ line, onBack }) => {
     const { getLocalizedText } = useLanguage();
@@ -25,64 +24,94 @@ const MTRLineDetail = ({ line, onBack }) => {
     const [selectedStation, setSelectedStation] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
     const updateInterval = useRef(null);
+    const isUpdating = useRef(false);
+    const mounted = useRef(true);
 
-    // Function to fetch arrivals for all stations
-    const fetchArrivals = async () => {
+    // Fetch arrivals for stations
+    const fetchArrivals = useCallback(async () => {
+        if (isUpdating.current || !mounted.current) return;
+        isUpdating.current = true;
+        
         const newArrivals = {};
-        for (const station of stations) {
-            try {
-                const data = await MTRService.getNextTrains(line.code, station.Station_Code);
-                if (data.data && data.data[`${line.code}-${station.Station_Code}`]) {
-                    newArrivals[station.Station_Code] = direction === 'UP'
-                        ? data.data[`${line.code}-${station.Station_Code}`].UP || []
-                        : data.data[`${line.code}-${station.Station_Code}`].DOWN || [];
+        try {
+            for (const station of stations) {
+                if (!mounted.current) break;
+                
+                try {
+                    const data = await MTRService.getNextTrains(line.code, station.Station_Code);
+                    if (data?.data?.[`${line.code}-${station.Station_Code}`]) {
+                        newArrivals[station.Station_Code] = direction === 'UP'
+                            ? data.data[`${line.code}-${station.Station_Code}`].UP || []
+                            : data.data[`${line.code}-${station.Station_Code}`].DOWN || [];
+                    }
+                } catch (err) {
+                    console.error(`Error fetching arrivals for station ${station.Station_Code}:`, err);
                 }
-            } catch (err) {
-                console.error(`Error fetching arrivals for station ${station.Station_Code}:`, err);
+            }
+            if (mounted.current) {
+                setArrivals(newArrivals);
+                setRefreshing(false);
+            }
+        } catch (error) {
+            console.error('Error fetching arrivals:', error);
+        } finally {
+            isUpdating.current = false;
+        }
+    }, [line.code, stations, direction]);
+
+    // Load stations data
+    const loadStations = useCallback(async (dir) => {
+        try {
+            const stationData = await MTRService.getLineStations(
+                line.code, 
+                dir === 'UP' ? 'UT' : 'DT'
+            );
+
+            if (!stationData || stationData.length === 0) {
+                throw new Error('No stations found for this line');
+            }
+
+            if (mounted.current) {
+                setStations(stationData);
+            }
+        } catch (err) {
+            console.error('Error loading station data:', err);
+            if (mounted.current) {
+                setError('Failed to load station information');
+                setStations([]);
             }
         }
-        setArrivals(newArrivals);
-        setRefreshing(false);
-    };
+    }, [line.code]);
 
-    // Load initial data
+    // Initial load
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-
-                // Fetch station data from MTR service
-                const stationData = await MTRService.getLineStations(line.code);
-
-                if (!stationData || stationData.length === 0) {
-                    throw new Error('No stations found for this line');
-                }
-
-                setStations(stationData);
-                await fetchArrivals();
-            } catch (err) {
-                console.error('Error loading station data:', err);
-                setError('Failed to load station information');
-            } finally {
-                setLoading(false);
-            }
+        mounted.current = true;
+        const initializeData = async () => {
+            setLoading(true);
+            await loadStations(direction);
+            setLoading(false);
         };
 
-        loadData();
+        initializeData();
 
         return () => {
+            mounted.current = false;
             if (updateInterval.current) {
                 clearInterval(updateInterval.current);
             }
         };
-    }, [line.code]);
+    }, []);
 
-    // Set up periodic updates
+    // Set up arrivals polling
     useEffect(() => {
-        if (stations.length > 0) {
+        if (stations.length > 0 && mounted.current) {
             fetchArrivals();
-            updateInterval.current = setInterval(fetchArrivals, 30000); // Update every 30 seconds
+            
+            updateInterval.current = setInterval(() => {
+                if (mounted.current && !isUpdating.current) {
+                    fetchArrivals();
+                }
+            }, 30000);
 
             return () => {
                 if (updateInterval.current) {
@@ -90,52 +119,51 @@ const MTRLineDetail = ({ line, onBack }) => {
                 }
             };
         }
-    }, [stations, direction]);
+    }, [stations, fetchArrivals]);
 
-    const handleDirectionToggle = useCallback(() => {
-        setDirection(prev => prev === 'UP' ? 'DOWN' : 'UP');
-    }, []);
+    // Handle direction toggle
+    const handleDirectionToggle = useCallback(async () => {
+        if (isUpdating.current) return;
+        
+        const newDirection = direction === 'UP' ? 'DOWN' : 'UP';
+        setDirection(newDirection);
+        setLoading(true);
+        setArrivals({});
+        
+        await loadStations(newDirection);
+        setLoading(false);
+    }, [direction, loadStations]);
 
     const handleStationPress = useCallback((stationCode) => {
-        setSelectedStation(stationCode === selectedStation ? null : stationCode);
-    }, [selectedStation]);
+        setSelectedStation(prev => prev === stationCode ? null : stationCode);
+    }, []);
 
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         await fetchArrivals();
-    }, []);
+    }, [fetchArrivals]);
 
-    const renderStationItem = useCallback(({ item, index }) => (
+    const renderStationItem = useCallback(({ item }) => (
         <MTRStationItem
             station={item}
             lineColor={line.color}
-            arrivals={arrivals[item.Station_Code]}
+            arrivals={arrivals[item.Station_Code] || []}
             isSelected={item.Station_Code === selectedStation}
             onPress={handleStationPress}
             direction={direction}
-            isFirst={index === 0}
-            isLast={index === stations.length - 1}
-            showConnections={true}
         />
-    ), [selectedStation, arrivals, direction, line.color, stations.length]);
+    ), [selectedStation, arrivals, direction, line.color]);
 
     const getTerminalStations = useCallback(() => {
         if (!stations.length) return { origin: null, destination: null };
 
-        if (direction === 'UP') {
-            return {
-                origin: stations[0],
-                destination: stations[stations.length - 1]
-            };
-        } else {
-            return {
-                origin: stations[stations.length - 1],
-                destination: stations[0]
-            };
-        }
-    }, [stations, direction]);
-
-    if (loading) {
+        return {
+            origin: stations[0],
+            destination: stations[stations.length - 1]
+        };
+    }, [stations]);
+    
+    if (loading && !refreshing) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
@@ -163,7 +191,7 @@ const MTRLineDetail = ({ line, onBack }) => {
             </SafeAreaView>
         );
     }
-
+    
     if (error) {
         return (
             <SafeAreaView style={styles.container}>
@@ -189,7 +217,7 @@ const MTRLineDetail = ({ line, onBack }) => {
                     <Text style={styles.errorText}>{error}</Text>
                     <TouchableOpacity
                         style={styles.retryButton}
-                        onPress={() => setLoading(true)}
+                        onPress={() => loadData(direction)}
                     >
                         <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
@@ -197,9 +225,7 @@ const MTRLineDetail = ({ line, onBack }) => {
             </SafeAreaView>
         );
     }
-
-    const terminals = getTerminalStations();
-
+    
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -220,31 +246,52 @@ const MTRLineDetail = ({ line, onBack }) => {
                 </View>
             </View>
 
-            <MTRRouteHeader
-                line={line}
-                direction={direction}
-                origin={terminals.origin}
-                destination={terminals.destination}
-                onToggle={handleDirectionToggle}
-                disabled={loading}
-            />
+            <View style={styles.routeHeaderContainer}>
+                <MTRRouteHeader
+                    line={line}
+                    direction={direction}
+                    origin={stations[0]}
+                    destination={stations[stations.length - 1]}
+                    onToggle={handleDirectionToggle}
+                    disabled={loading || isUpdating.current}
+                />
+            </View>
+
+            {loading && !refreshing && (
+                <View style={styles.loadingOverlay}>
+                    <ActivityIndicator size="large" color="#0066cc" />
+                </View>
+            )}
 
             <FlatList
                 data={stations}
                 renderItem={renderStationItem}
-                keyExtractor={item => item.Station_Code}
-                contentContainerStyle={styles.listContainer}
+                keyExtractor={item => `${item.Station_Code}-${direction}`}
+                contentContainerStyle={[
+                    styles.listContainer,
+                    stations.length === 0 && styles.emptyListContainer
+                ]}
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>No stations available</Text>
-                    </View>
+                    !loading && (
+                        <View style={styles.emptyContainer}>
+                            <MaterialIcons 
+                                name="info-outline" 
+                                size={24} 
+                                color="#666666" 
+                            />
+                            <Text style={styles.emptyText}>
+                                No stations available
+                            </Text>
+                        </View>
+                    )
                 }
             />
         </SafeAreaView>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {
@@ -272,15 +319,31 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#333333',
     },
+    routeHeaderContainer: {
+        backgroundColor: '#ffffff',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
     listContainer: {
         padding: 16,
-        paddingBottom: 32,
+    },
+    emptyListContainer: {
+        flexGrow: 1,
+        justifyContent: 'center',
     },
     centerContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 16,
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     loadingText: {
         marginTop: 16,
@@ -310,10 +373,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     emptyText: {
+        marginTop: 8,
         fontSize: 16,
         color: '#666666',
         textAlign: 'center',
-    }
+    },
 });
 
 export default MTRLineDetail;

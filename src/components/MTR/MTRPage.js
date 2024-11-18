@@ -1,25 +1,24 @@
-// src/components/MTR/MTRPage.js
+// components/MTR/MTRPage.js
+import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     RefreshControl,
+    SafeAreaView,
     StyleSheet,
     Text,
-    View,
-    SafeAreaView
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 
 // Component imports
 import MTRService from '../../services/mtrService';
+import { useLanguage } from '../Header';
 import MTRLineCard from './MTRLineCard';
 import MTRLineDetail from './MTRLineDetail';
-import { useLanguage } from '../Header';
 
 const MTRPage = () => {
-    // States
     const [selectedLine, setSelectedLine] = useState(null);
     const [lines, setLines] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -50,60 +49,31 @@ const MTRPage = () => {
 
                         // Determine line status
                         if (!status || status.status === 0) {
-                            statuses[line.code] = {
-                                type: 'alert',
-                                message: status?.message || 'Service Alert'
-                            };
+                            statuses[line.code] = 'alert';
                         } else if (status.isdelay === 'Y') {
-                            statuses[line.code] = {
-                                type: 'delayed',
-                                message: 'Delayed Service'
-                            };
+                            statuses[line.code] = 'delayed';
                         } else {
-                            statuses[line.code] = {
-                                type: 'normal',
-                                message: 'Normal Service'
-                            };
+                            statuses[line.code] = 'normal';
                         }
                     }
                 } catch (err) {
                     console.error(`Error fetching status for line ${line.code}:`, err);
-                    statuses[line.code] = {
-                        type: 'unknown',
-                        message: 'Status Unavailable'
-                    };
+                    statuses[line.code] = 'unknown';
                 }
             }
             setLineStatuses(statuses);
         } catch (err) {
-            const errorMessage = 'Failed to load MTR information. Please try again later.';
-            setError(errorMessage);
-            Alert.alert('Error', errorMessage);
             console.error('Error loading MTR data:', err);
+            setError('Failed to load MTR information. Please try again later.');
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     };
 
-    // Initial load
     useEffect(() => {
         loadMTRData();
     }, []);
-
-    // Periodic refresh of line statuses
-    useEffect(() => {
-        if (lines.length === 0) return;
-
-        const intervalId = setInterval(() => {
-            // Only update statuses if we're on the main page
-            if (!selectedLine) {
-                loadMTRData();
-            }
-        }, 30000); // Every 30 seconds
-
-        return () => clearInterval(intervalId);
-    }, [lines, selectedLine]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -128,13 +98,7 @@ const MTRPage = () => {
             <SafeAreaView style={styles.container}>
                 <View style={styles.centerContainer}>
                     <ActivityIndicator size="large" color="#0066cc" />
-                    <Text style={styles.loadingText}>
-                        {getLocalizedText({
-                            en: 'Loading MTR information...',
-                            tc: '正在載入港鐵資訊...',
-                            sc: '正在载入港铁资讯...'
-                        })}
-                    </Text>
+                    <Text style={styles.loadingText}>Loading MTR information...</Text>
                 </View>
             </SafeAreaView>
         );
@@ -150,13 +114,7 @@ const MTRPage = () => {
                         style={styles.retryButton}
                         onPress={loadMTRData}
                     >
-                        <Text style={styles.retryButtonText}>
-                            {getLocalizedText({
-                                en: 'Retry',
-                                tc: '重試',
-                                sc: '重试'
-                            })}
-                        </Text>
+                        <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -187,13 +145,7 @@ const MTRPage = () => {
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <MaterialIcons name="info-outline" size={48} color="#999999" />
-                        <Text style={styles.emptyText}>
-                            {getLocalizedText({
-                                en: 'No MTR lines available',
-                                tc: '沒有可用的港鐵路線',
-                                sc: '没有可用的港铁路线'
-                            })}
-                        </Text>
+                        <Text style={styles.emptyText}>No MTR lines available</Text>
                     </View>
                 }
             />
