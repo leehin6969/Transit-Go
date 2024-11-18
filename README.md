@@ -43,6 +43,9 @@ Transit Go is your all-in-one companion for navigating Hong Kong's public transp
 * Location services integration
 * Responsive design for all screen sizes
 
+### Demo Video
+* Coming soon!
+
 ## Technical Details
 
 ### API Integration
