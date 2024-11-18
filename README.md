@@ -172,9 +172,6 @@ console.log(nearbyStops);
 * Minibus ETAs
 * Push notifications
 
-## Contributing
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -195,3 +192,40 @@ Need help or have questions? Reach out to us:
 * Favorites system
 * Minibus ETAs
 * Push notifications
+
+## Data Attribution and Terms of Use
+
+### Data Sources
+This application utilizes open data from DATA.GOV.HK, provided by:
+* The Government of the Hong Kong Special Administrative Region
+* KMB (The Kowloon Motor Bus Company Limited)
+* MTR Corporation Limited
+
+### Terms of Use
+In accordance with DATA.GOV.HK's terms of use:
+
+1. **Data Attribution**  
+   All data used in this application is sourced from DATA.GOV.HK and its contributing organizations. The intellectual property rights of the data belong to the Government of the Hong Kong Special Administrative Region and the respective data providers.
+
+2. **Disclaimer**  
+   The data is provided on an "AS IS" basis. Neither the Government nor the data providers:
+   * Make any warranty regarding the accuracy, completeness, or reliability of the data
+   * Accept liability for any errors, omissions, or misrepresentations
+   * Take responsibility for any loss or damage arising from the use or misuse of the data
+
+3. **Usage Rights**  
+   This application uses the data for both non-commercial and commercial purposes under DATA.GOV.HK's terms, which allow:
+   * Browsing, downloading, and distributing the data
+   * Reproducing and printing in original format
+   * Commercial and non-commercial usage on a free-of-charge basis
+
+4. **Updates and Changes**  
+   * Data providers reserve the right to revise or suspend data provision at any time
+   * No guarantee is provided regarding the availability of updated versions
+   * Service reliability is subject to the data providers' systems and updates
+
+### Version Information
+* DATA.GOV.HK Terms Version: 1.1
+* Last Updated: 25 July 2024
+
+For complete terms and conditions, visit [DATA.GOV.HK](https://data.gov.hk).
