@@ -1,7 +1,5 @@
 # Transit Go - Hong Kong Public Transport Companion
 
-[image here - App logo/icon]
-
 ## Overview
 
 Transit Go is your all-in-one companion for navigating Hong Kong's public transport system. Focusing on KMB bus services and the MTR, our app delivers real-time arrival information, nearby stop locations, and comprehensive route details to help you plan your journeys efficiently and effortlessly.
@@ -65,7 +63,7 @@ Transit Go is your all-in-one companion for navigating Hong Kong's public transp
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/transit-go.git
+git clone https://github.com/leehin6969/transit-go.git
 cd transit-go
 
 # Install dependencies
@@ -79,14 +77,6 @@ npm run ios
 
 # Run on Android
 npm run android
-```
-
-### Configuration
-
-Create a `.env` file in the root directory:
-
-```env
-GOOGLE_MAPS_API_KEY=your_api_key_here
 ```
 
 ## Usage Examples
@@ -180,10 +170,7 @@ console.log(nearbyStops);
 ## Upcoming Features (v2.0.0)
 * Favorites system
 * Minibus ETAs
-* Journey planning
 * Push notifications
-* Widgets
-* WearOS & Apple Watch companion apps
 
 ## Contributing
 Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
@@ -194,12 +181,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 Need help or have questions? Reach out to us:
 * Email us at redmmo6969@gmail.com
-
-## Screenshots
-[image here - Route search feature]  
-[image here - Nearby stops view]  
-[image here - Traffic information page]  
-[image here - MTR line status]
 
 ## Release History
 
@@ -213,6 +194,4 @@ Need help or have questions? Reach out to us:
 ### 2.0.0 (Planned)
 * Favorites system
 * Minibus ETAs
-* Journey planning
 * Push notifications
-* Widgets
