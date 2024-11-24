@@ -1,8 +1,9 @@
-import { TRAFFIC_API_ENDPOINT } from '@env';
+import { TRAFFIC_API_ENDPOINT, GOOGLE_MAPS_API_KEY } from '@env';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     StyleSheet,
     Text,
@@ -11,6 +12,8 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useLanguage } from './Header';
+import AffectedStopsPage from './AffectedStopsPage';
+
 const API_ENDPOINT = TRAFFIC_API_ENDPOINT;
 
 const TrafficInformation = () => {
@@ -20,9 +23,12 @@ const TrafficInformation = () => {
     const [error, setError] = useState(null);
     const [nextToken, setNextToken] = useState(null);
     const [expandedGroups, setExpandedGroups] = useState(new Set());
-    const { language } = useLanguage();
+    const { language, getLocalizedText } = useLanguage();
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDatePickerVisible, setDatePickerVisible] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [showAffectedStops, setShowAffectedStops] = useState(false);
+    const [selectedIncident, setSelectedIncident] = useState(null);
 
     const parseDynamoDBItem = (item) => {
         if (Array.isArray(item)) {
@@ -57,6 +63,32 @@ const TrafficInformation = () => {
         return item;
     };
 
+    const geocodeLocation = async (location) => {
+        if (!GOOGLE_MAPS_API_KEY) {
+            throw new Error('Google Maps API key not configured');
+        }
+
+        try {
+            const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location + ', Hong Kong')
+                }&key=${GOOGLE_MAPS_API_KEY}`
+            );
+            const data = await response.json();
+
+            if (!data.results?.[0]?.geometry?.location) {
+                throw new Error('Could not geocode location');
+            }
+
+            return {
+                latitude: data.results[0].geometry.location.lat,
+                longitude: data.results[0].geometry.location.lng
+            };
+        } catch (error) {
+            console.error('Geocoding error:', error);
+            return null;
+        }
+    };
+
     const getStatusColor = useCallback((status) => {
         if (!status) return styles.statusNew;
         const statusText = status[language === 'en' ? 'en' : 'cn'];
@@ -67,7 +99,6 @@ const TrafficInformation = () => {
     }, [language]);
 
     const groupAndSortIncidents = useCallback((incidentsList) => {
-        // Group incidents by incidentNumber
         const groups = incidentsList.reduce((acc, incident) => {
             const groupKey = incident.incidentNumber;
             if (!acc[groupKey]) {
@@ -77,14 +108,12 @@ const TrafficInformation = () => {
             return acc;
         }, {});
 
-        // Sort incidents within each group by date (newest first)
         Object.keys(groups).forEach(key => {
             groups[key].sort((a, b) =>
                 new Date(b.announcementDate) - new Date(a.announcementDate)
             );
         });
 
-        // Convert to array and sort groups by their latest update
         return Object.entries(groups)
             .map(([incidentNumber, incidents]) => ({
                 incidentNumber,
@@ -112,7 +141,6 @@ const TrafficInformation = () => {
             }
 
             const data = typeof responseData.body === 'string' ? JSON.parse(responseData.body) : responseData;
-
             const processedIncidents = (data.items || []).map(item => {
                 const parsedItem = parseDynamoDBItem(item);
                 return {
@@ -134,6 +162,7 @@ const TrafficInformation = () => {
             setError(error.message || 'Failed to load traffic updates. Please try again later.');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, [nextToken, incidents, groupAndSortIncidents]);
 
@@ -153,6 +182,56 @@ const TrafficInformation = () => {
             }
             return newSet;
         });
+    };
+
+    const renderAffectedStopsButton = (incident) => {
+        // Get status in current language
+        const currentStatus = incident?.status?.[language === 'en' ? 'en' : 'cn'];
+
+        // Check if status is closed - handle both raw string and DynamoDB format
+        const isClosed = typeof currentStatus === 'string' ?
+            currentStatus === (language === 'en' ? 'CLOSED' : '完結') :
+            currentStatus?.S === (language === 'en' ? 'CLOSED' : '完結');
+
+        // Debug log to check status
+        console.log('Status check:', {
+            currentStatus,
+            isClosed,
+            fullStatus: incident?.status
+        });
+
+        if (isClosed) return null;
+
+        // Check if landmarks exist
+        const hasNearLandmark = Boolean(incident.landmarks?.near?.[language === 'en' ? 'en' : 'cn']);
+        const hasBetweenLandmark = Boolean(incident.landmarks?.between?.[language === 'en' ? 'en' : 'cn']);
+
+        // Only show button if at least one type of landmark exists
+        if (!hasNearLandmark && !hasBetweenLandmark) return null;
+
+        return (
+            <TouchableOpacity
+                style={styles.affectedStopsButton}
+                onPress={() => {
+                    setSelectedIncident(incident);
+                    setShowAffectedStops(true);
+                }}
+            >
+                <MaterialIcons
+                    name="directions-bus"
+                    size={20}
+                    color="#dc2626"
+                />
+                <Text style={styles.affectedStopsButtonText}>
+                    {language === 'en' ? 'Show Affected Stops' : '顯示受影響巴士站'}
+                </Text>
+                <MaterialIcons
+                    name="chevron-right"
+                    size={20}
+                    color="#dc2626"
+                />
+            </TouchableOpacity>
+        );
     };
 
     const renderIncidentCard = useCallback((incident, isLatest = false) => {
@@ -232,6 +311,8 @@ const TrafficInformation = () => {
                 {getContent('content') && (
                     <Text style={styles.content}>{getContent('content')}</Text>
                 )}
+
+                {renderAffectedStopsButton(incident)}
             </View>
         );
     }, [language, getStatusColor]);
@@ -274,23 +355,13 @@ const TrafficInformation = () => {
         );
     }, [expandedGroups, renderIncidentCard, language]);
 
-    const showDatePicker = () => {
-        setDatePickerVisible(true);
-    };
-
-    const hideDatePicker = () => {
-        setDatePickerVisible(false);
-    };
-
+    const showDatePicker = () => setDatePickerVisible(true);
+    const hideDatePicker = () => setDatePickerVisible(false);
     const handleConfirm = (date) => {
         setSelectedDate(date);
         hideDatePicker();
     };
-
-    const clearDateFilter = () => {
-        setSelectedDate(new Date());
-    };
-
+    const clearDateFilter = () => setSelectedDate(new Date());
     const isToday = (date) => {
         const today = new Date();
         return date.getDate() === today.getDate() &&
@@ -400,9 +471,23 @@ const TrafficInformation = () => {
                     </View>
                 )}
             />
+
+            {showAffectedStops && selectedIncident && (
+                <View style={StyleSheet.absoluteFill}>
+                    <AffectedStopsPage
+                        incident={selectedIncident}
+                        onBack={() => {
+                            setShowAffectedStops(false);
+                            setSelectedIncident(null);
+                        }}
+                        geocodeLocation={geocodeLocation}
+                    />
+                </View>
+            )}
         </View>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {
@@ -411,6 +496,24 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         padding: 16,
+    },
+    affectedStopsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 8,
+        marginTop: 12,
+        backgroundColor: '#fef2f2',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#fee2e2',
+        gap: 8,
+    },
+    affectedStopsButtonText: {
+        color: '#dc2626',
+        fontSize: 14,
+        fontWeight: '500',
+        flex: 1,
     },
     filterContainer: {
         flexDirection: 'row',
