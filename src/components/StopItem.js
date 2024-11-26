@@ -1,18 +1,27 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, Animated } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useEtaUpdates } from '../hooks/useEtaUpdates';
 import useLocation from '../hooks/useLocation';
 import { ETAHeartbeat } from '../styles/ETAHeartbeat';
-import { calculateDistance, formatDistance } from '../utils/distance';
+import { calculateDistance } from '../utils/distance';
 import { formatEta, getEtaColor } from '../utils/etaFormatting';
 import { useLanguage } from './Header';
 import StopRoutes from './StopRoutes';
 import StreetViewButton from './StreetViewButton';
 
-const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePress = () => { } }) => {
-    const { getLocalizedText } = useLanguage();
+const StopItem = ({
+    item,
+    isSelected,
+    onPress,
+    showModal,
+    hideModal,
+    onRoutePress = () => { },
+    isAffected = false,
+    affectedReason = null
+}) => {
+    const { getLocalizedText, language } = useLanguage();
     const { etaData, isUpdating } = useEtaUpdates('route', item.route, item.stop);
     const { width: screenWidth } = useWindowDimensions();
     const [showMap, setShowMap] = useState(false);
@@ -21,6 +30,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
     const [distanceToStop, setDistanceToStop] = useState(null);
     const mapRef = useRef(null);
     const { location } = useLocation();
+    const [mapHeight] = useState(new Animated.Value(0));
 
     const stopLocation = useMemo(() => {
         if (!stopDetails?.lat || !stopDetails?.long) return null;
@@ -32,7 +42,6 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
         };
     }, [stopDetails]);
 
-    // Calculate distance when location or stop details change
     useEffect(() => {
         if (location?.coords && stopDetails?.lat && stopDetails?.long) {
             const distance = calculateDistance(
@@ -41,7 +50,6 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                 parseFloat(stopDetails.lat),
                 parseFloat(stopDetails.long)
             );
-            // Convert to meters and only set if less than 200m
             const distanceInMeters = distance * 1000;
             setDistanceToStop(distanceInMeters <= 200 ? distanceInMeters : null);
         }
@@ -66,7 +74,6 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
     }, [item.stop]);
 
     useEffect(() => {
-        // Always fetch stop details for distance calculation
         if (!stopDetails && !isLoadingLocation) {
             fetchStopDetails();
         }
@@ -75,12 +82,22 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
     useEffect(() => {
         if (!isSelected) {
             setShowMap(false);
+            Animated.timing(mapHeight, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: false
+            }).start();
         }
     }, [isSelected]);
 
-    const handleMapPress = useCallback(() => {
-        setShowMap(prev => !prev);
-    }, []);
+    const handleMapPress = () => {
+        setShowMap(!showMap);
+        Animated.timing(mapHeight, {
+            toValue: showMap ? 0 : 200,
+            duration: 300,
+            useNativeDriver: false
+        }).start();
+    };
 
     const handleShowRoutes = () => {
         showModal(
@@ -160,7 +177,7 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                 </ETAHeartbeat>
             );
         });
-    }, [item.eta, isUpdating, getLocalizedText]);
+    }, [item.eta, isUpdating, language]);
 
     const renderMap = () => {
         if (!stopLocation) return null;
@@ -171,6 +188,8 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                     ref={mapRef}
                     style={styles.map}
                     initialRegion={stopLocation}
+                    scrollEnabled={true}
+                    zoomEnabled={true}
                 >
                     <Marker
                         coordinate={{
@@ -184,7 +203,11 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
                         })}
                     >
                         <View style={styles.markerContainer}>
-                            <MaterialIcons name="directions-bus" size={24} color="#0066cc" />
+                            <MaterialIcons
+                                name="directions-bus"
+                                size={24}
+                                color={isAffected ? '#dc2626' : '#0066cc'}
+                            />
                         </View>
                     </Marker>
                 </MapView>
@@ -197,111 +220,135 @@ const StopItem = ({ item, isSelected, onPress, showModal, hideModal, onRoutePres
         );
     };
 
+    const renderAffectedBadge = () => {
+        if (!isAffected) return null;
+
+        return (
+            <View style={styles.affectedBadge}>
+                <MaterialIcons name="warning" size={16} color="#dc2626" />
+                <Text style={styles.affectedText}>
+                    {language === 'en' ? 'Service Affected' : '服務受阻'}
+                </Text>
+            </View>
+        );
+    };
+
+    const containerStyle = useMemo(() => [
+        styles.container,
+        isAffected && styles.affectedContainer,
+        isSelected && styles.selectedContainer,
+    ], [isAffected, isSelected]);
+
     return (
-        <View style={styles.container}>
-            <View style={[
-                styles.stopItem,
-                isSelected && styles.selectedStopItem,
-                distanceToStop !== null && styles.nearbyStopItem
-            ]}>
-                <TouchableOpacity
-                    onPress={() => onPress(item.stop)}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.contentWrapper}>
-                        <View style={styles.mainContent}>
-                            <View style={styles.stopHeader}>
-                                <View style={styles.stopInfo}>
-                                    <View style={styles.stopSequenceContainer}>
-                                        <Text style={styles.stopSequence}>Stop {item.seq}</Text>
-                                        {distanceToStop !== null && (
-                                            <View style={styles.distanceBadge}>
-                                                <Text style={styles.distanceText}>
-                                                    {Math.round(distanceToStop)}m
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    <Text style={styles.stopName} numberOfLines={2}>
-                                        {getLocalizedText({
-                                            en: item.name_en,
-                                            tc: item.name_tc,
-                                            sc: item.name_sc
-                                        })}
+        <View style={styles.wrapper}>
+            <TouchableOpacity
+                style={containerStyle}
+                onPress={() => onPress(item.stop)}
+                activeOpacity={0.7}
+            >
+                <View style={styles.contentWrapper}>
+                    {renderAffectedBadge()}
+                    <View style={styles.mainContent}>
+                        <View style={styles.stopHeader}>
+                            <View style={styles.stopInfo}>
+                                <View style={styles.stopSequenceContainer}>
+                                    <Text style={styles.stopSequence}>
+                                        Stop {item.seq}
                                     </Text>
+                                    {distanceToStop !== null && (
+                                        <View style={styles.distanceBadge}>
+                                            <Text style={styles.distanceText}>
+                                                {Math.round(distanceToStop)}m
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
-                                {!isSelected && (
-                                    <Text style={styles.destination} numberOfLines={2}>
-                                        {getLocalizedText({
-                                            en: item.dest_en,
-                                            tc: item.dest_tc,
-                                            sc: item.dest_sc
-                                        })}
-                                    </Text>
-                                )}
+                                <Text style={styles.stopName} numberOfLines={2}>
+                                    {getLocalizedText({
+                                        en: item.name_en,
+                                        tc: item.name_tc,
+                                        sc: item.name_sc
+                                    })}
+                                </Text>
                             </View>
-                            <View style={styles.etaContainer}>
-                                {renderEtaList()}
-                            </View>
+                            {!isSelected && (
+                                <Text style={styles.destination} numberOfLines={2}>
+                                    {getLocalizedText({
+                                        en: item.dest_en,
+                                        tc: item.dest_tc,
+                                        sc: item.dest_sc
+                                    })}
+                                </Text>
+                            )}
                         </View>
 
-                        {isSelected && (
-                            <View style={styles.actionsContainer}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.actionButton,
-                                        showMap && styles.actionButtonActive
-                                    ]}
-                                    onPress={handleMapPress}
-                                >
-                                    <MaterialIcons
-                                        name={isLoadingLocation ? "hourglass-empty" : "map"}
-                                        size={20}
-                                        color="#0066cc"
-                                    />
-                                    <Text style={styles.actionButtonText}>
-                                        {isLoadingLocation ? 'Loading' : 'Map'}
-                                    </Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.actionButton}
-                                    onPress={handleShowRoutes}
-                                >
-                                    <MaterialIcons name="list" size={20} color="#0066cc" />
-                                    <Text style={styles.actionButtonText}>Routes</Text>
-                                </TouchableOpacity>
+                        {isAffected && affectedReason && (
+                            <View style={styles.affectedReasonContainer}>
+                                <Text style={styles.affectedReason}>
+                                    {getLocalizedText(affectedReason)}
+                                </Text>
                             </View>
                         )}
-                    </View>
-                </TouchableOpacity>
 
-                {showMap && (
-                    <View style={styles.mapDivider} />
-                )}
-
-                {showMap && (
-                    isLoadingLocation ? (
-                        <View style={[styles.mapWrapper, styles.loadingContainer]}>
-                            <MaterialIcons name="hourglass-empty" size={24} color="#0066cc" />
-                            <Text style={styles.loadingText}>Loading map...</Text>
+                        <View style={styles.etaContainer}>
+                            {renderEtaList()}
                         </View>
-                    ) : (
-                        renderMap()
-                    )
-                )}
-            </View>
+                    </View>
+
+                    {isSelected && (
+                        <View style={styles.actionsContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.actionButton,
+                                    showMap && styles.actionButtonActive
+                                ]}
+                                onPress={handleMapPress}
+                            >
+                                <MaterialIcons
+                                    name={isLoadingLocation ? "hourglass-empty" : "map"}
+                                    size={20}
+                                    color="#0066cc"
+                                />
+                                <Text style={styles.actionButtonText}>
+                                    {isLoadingLocation ? 'Loading' : 'Map'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={handleShowRoutes}
+                            >
+                                <MaterialIcons name="list" size={20} color="#0066cc" />
+                                <Text style={styles.actionButtonText}>Routes</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+
+                <Animated.View style={[styles.mapContainer, { height: mapHeight }]}>
+                    {showMap && (
+                        isLoadingLocation ? (
+                            <View style={styles.loadingContainer}>
+                                <MaterialIcons name="hourglass-empty" size={24} color="#0066cc" />
+                                <Text style={styles.loadingText}>Loading map...</Text>
+                            </View>
+                        ) : (
+                            renderMap()
+                        )
+                    )}
+                </Animated.View>
+            </TouchableOpacity>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
+    wrapper: {
         marginBottom: 8,
     },
-    stopItem: {
+    container: {
         backgroundColor: '#ffffff',
-        borderRadius: 8,
+        borderRadius: 12,
         elevation: 2,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 1 },
@@ -310,27 +357,19 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: 'transparent',
     },
-    selectedStopItem: {
+    affectedContainer: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#dc2626',
+    },
+    selectedContainer: {
         backgroundColor: '#f0f7ff',
         borderColor: '#0066cc',
     },
-    nearbyStopItem: {
-        backgroundColor: '#f0fdf4',
-        borderColor: '#22c55e',
-        borderWidth: 2,
-    },
     contentWrapper: {
-        flexDirection: 'row',
         padding: 16,
-    },
-    mapDivider: {
-        height: 1,
-        backgroundColor: '#e0e0e0',
-        marginHorizontal: 16,
     },
     mainContent: {
         flex: 1,
-        paddingRight: 8,
     },
     stopHeader: {
         flexDirection: 'row',
@@ -375,6 +414,33 @@ const styles = StyleSheet.create({
         textAlign: 'right',
         flex: 0.4,
     },
+    affectedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fee2e2',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+        gap: 4,
+    },
+    affectedText: {
+        color: '#dc2626',
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    affectedReasonContainer: {
+        backgroundColor: '#fff1f2',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    affectedReason: {
+        color: '#dc2626',
+        fontSize: 14,
+        fontStyle: 'italic',
+    },
     etaContainer: {
         gap: 4,
     },
@@ -402,13 +468,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     actionsContainer: {
-        width: 70,
-        borderLeftWidth: 1,
-        borderLeftColor: '#e0e0e0',
-        paddingLeft: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+        marginTop: 12,
+        paddingTop: 12,
         gap: 8,
     },
     actionButton: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         padding: 8,
@@ -423,11 +492,16 @@ const styles = StyleSheet.create({
         color: '#0066cc',
         marginTop: 4,
     },
-    mapWrapper: {
-        height: 200,
+    mapContainer: {
         overflow: 'hidden',
+    },
+    mapWrapper: {
+        position: 'relative',
+        width: '100%',
+        height: '100%',
         backgroundColor: '#f5f5f5',
-        borderRadius: 8,
+        borderBottomLeftRadius: 12,
+        borderBottomRightRadius: 12,
     },
     map: {
         width: '100%',
@@ -451,10 +525,10 @@ const styles = StyleSheet.create({
         right: 16,
     },
     loadingContainer: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#f0f7ff',
-        height: 200,
     },
     loadingText: {
         marginTop: 8,
@@ -466,5 +540,7 @@ const styles = StyleSheet.create({
 export default memo(StopItem, (prevProps, nextProps) => {
     return prevProps.isSelected === nextProps.isSelected &&
         prevProps.item.eta === nextProps.item.eta &&
-        prevProps.location === nextProps.location;
+        prevProps.location === nextProps.location &&
+        prevProps.isAffected === nextProps.isAffected &&
+        prevProps.affectedReason === nextProps.affectedReason;
 });

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 // Component imports
-import Header, { LanguageProvider } from './components/Header';
+import Header, { LanguageProvider, useLanguage } from './components/Header';
 import NearbyStopItem from './components/NearbyStopItem';
 import RouteHeader from './components/RouteHeader';
 import SearchBar from './components/SearchBar';
@@ -34,6 +34,124 @@ import {
 } from './services/api';
 import { calculateDistance } from './utils/distance';
 import { getRouteDirectionInfo } from './utils/routeServiceCheck';
+import { GOOGLE_MAPS_API_KEY } from '@env';
+
+const PROXIMITY_RADIUS = 250; // meters
+const BETWEEN_RADIUS = 750; // meters
+
+// Function to geocode a location string to coordinates
+const geocodeLocation = async (locationName) => {
+    if (!GOOGLE_MAPS_API_KEY) {
+        throw new Error('Google Maps API key not configured');
+    }
+
+    try {
+        const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(locationName + ', Hong Kong')}&key=${GOOGLE_MAPS_API_KEY}`
+        );
+        const data = await response.json();
+
+        if (!data.results?.[0]?.geometry?.location) {
+            throw new Error('Could not geocode location');
+        }
+
+        return {
+            latitude: data.results[0].geometry.location.lat,
+            longitude: data.results[0].geometry.location.lng
+        };
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        return null;
+    }
+};
+
+// Function to find stops near a point
+const findStopsNearPoint = async (locationName, allStops, radius) => {
+    try {
+        const coords = await geocodeLocation(locationName);
+        if (!coords) return [];
+
+        return allStops.filter(stop => {
+            const distance = calculateDistance(
+                coords.latitude,
+                coords.longitude,
+                parseFloat(stop.lat),
+                parseFloat(stop.long)
+            );
+            stop.distance = distance * 1000; // Convert to meters
+            return distance * 1000 <= radius;
+        });
+    } catch (error) {
+        console.error(`Error finding stops near ${locationName}:`, error);
+        return [];
+    }
+};
+
+// Function to find stops between two points
+const findStopsBetweenPoints = async (locationString, allStops) => {
+    try {
+        // Split the between string into individual locations
+        const locations = locationString.split(/\s*(?:and|與|和)\s*/);
+        if (locations.length !== 2) return [];
+
+        // Get coordinates for both points
+        const [point1Coords, point2Coords] = await Promise.all(
+            locations.map(loc => geocodeLocation(loc))
+        );
+
+        if (!point1Coords || !point2Coords) return [];
+
+        // Find stops that are within radius of the line between points
+        return allStops.filter(stop => {
+            const stopLat = parseFloat(stop.lat);
+            const stopLong = parseFloat(stop.long);
+
+            // Calculate distances from stop to each endpoint
+            const distanceToPoint1 = calculateDistance(
+                point1Coords.latitude,
+                point1Coords.longitude,
+                stopLat,
+                stopLong
+            ) * 1000; // Convert to meters
+
+            const distanceToPoint2 = calculateDistance(
+                point2Coords.latitude,
+                point2Coords.longitude,
+                stopLat,
+                stopLong
+            ) * 1000; // Convert to meters
+
+            // Calculate total distance between endpoints
+            const totalDistance = calculateDistance(
+                point1Coords.latitude,
+                point1Coords.longitude,
+                point2Coords.latitude,
+                point2Coords.longitude
+            ) * 1000; // Convert to meters
+
+            // If stop is close to either endpoint, include it
+            if (distanceToPoint1 <= BETWEEN_RADIUS || distanceToPoint2 <= BETWEEN_RADIUS) {
+                stop.distance = Math.min(distanceToPoint1, distanceToPoint2);
+                return true;
+            }
+
+            // Check if stop is roughly between the points
+            // Sum of distances to endpoints should be close to total distance
+            const sumOfDistances = distanceToPoint1 + distanceToPoint2;
+            const isRoughlyBetween = Math.abs(sumOfDistances - totalDistance) <= BETWEEN_RADIUS;
+
+            if (isRoughlyBetween) {
+                stop.distance = Math.min(distanceToPoint1, distanceToPoint2);
+                return true;
+            }
+
+            return false;
+        });
+    } catch (error) {
+        console.error('Error finding stops between points:', error);
+        return [];
+    }
+};
 
 function AppContent() {
     // States
@@ -52,12 +170,26 @@ function AppContent() {
     const [allRoutes, setAllRoutes] = useState([]);
     const [modalContent, setModalContent] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
-
     const [showMenu, setShowMenu] = useState(false);
     const [menuHeight] = useState(new Animated.Value(0));
 
+    // New state for affected stops
+    const [affectedStops, setAffectedStops] = useState([]);
+    const [affectedStopsLoading, setAffectedStopsLoading] = useState(false);
+    const [affectedStopsError, setAffectedStopsError] = useState(null);
+
     // Refs
     const listRef = useRef(null);
+    const affectedStopsInterval = useRef(null);
+    const updateInterval = useRef(null);
+
+    // Hooks
+    const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
+    const { language, getLocalizedText } = useLanguage();
+
+    const findNearbyStops = findStopsNearPoint;
+    const findBetweenStops = findStopsBetweenPoints;
+    const geocode = geocodeLocation;
 
     const handleSettingsPress = () => {
         setShowSettings(true);
@@ -81,48 +213,156 @@ function AppContent() {
         }).start();
     };
 
-    // Hooks
-    const { location, loading: locationLoading, errorMsg, refreshLocation } = useLocation();
-
-    const scrollToStop = useCallback((index) => {
-        if (!listRef.current || !transitioning) return;
-
+    // Fetch affected stops
+    // Fix for the fetchAffectedStops function
+    const fetchAffectedStops = async () => {
         try {
-            // First try to scroll immediately
-            listRef.current.scrollToIndex({
-                index,
-                animated: true,
-                viewPosition: 0.3,
-                viewOffset: 20
-            });
-        } catch (error) {
-            // If immediate scroll fails, try with a delay
-            console.warn('Initial scroll failed, retrying with delay');
-            setTimeout(() => {
-                if (listRef.current && transitioning) {
-                    listRef.current.scrollToIndex({
-                        index,
-                        animated: true,
-                        viewPosition: 0.3,
-                        viewOffset: 20
-                    });
-                }
-            }, 100);
-        } finally {
-            // Reset transitioning state after a delay
-            setTimeout(() => {
-                setTransitioning(false);
-            }, 500);
-        }
-    }, [transitioning]);
+            setAffectedStopsLoading(true);
+            setAffectedStopsError(null);
 
-    // Effects
+            const response = await fetch(`${process.env.TRAFFIC_API_ENDPOINT}`);
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                throw new Error(responseData.message || 'Failed to fetch traffic incidents');
+            }
+
+            // Parse DynamoDB response format
+            const data = typeof responseData.body === 'string' ?
+                JSON.parse(responseData.body) : responseData;
+
+            // Ensure data.items exists before filtering
+            const incidents = data?.items || [];
+
+            // Filter for active incidents only
+            const activeIncidents = incidents.filter(incident => {
+                // Get status in current language
+                const status = incident?.status?.[language === 'en' ? 'en' : 'cn']?.S ||
+                    incident?.status?.[language === 'en' ? 'en' : 'cn'];
+
+                return status && status !== 'CLOSED' && status !== '完結';
+            });
+
+            // Process affected stops
+            const affected = await Promise.all(
+                activeIncidents.map(async incident => {
+                    const parsedIncident = parseDynamoDBItem(incident);
+                    // Process each incident's affected stops using AffectedStopsPage logic
+                    const landmarks = extractLandmarks(parsedIncident);
+                    let stopsData = [];
+
+                    if (landmarks.near) {
+                        const nearbyStops = await findNearbyStops(
+                            landmarks.near,
+                            await fetchAllStops(),
+                            PROXIMITY_RADIUS
+                        );
+                        stopsData = [...stopsData, ...nearbyStops];
+                    }
+
+                    if (landmarks.between) {
+                        const betweenStops = await findBetweenStops(
+                            landmarks.between,
+                            await fetchAllStops()
+                        );
+                        stopsData = [...stopsData, ...betweenStops];
+                    }
+
+                    return stopsData.map(stop => ({
+                        ...stop,
+                        reason: {
+                            en: parsedIncident.heading?.en || parsedIncident.heading?.['M']?.en?.['S'] || '',
+                            tc: parsedIncident.heading?.cn || parsedIncident.heading?.['M']?.cn?.['S'] || '',
+                            sc: parsedIncident.heading?.cn || parsedIncident.heading?.['M']?.cn?.['S'] || ''
+                        }
+                    }));
+                })
+            );
+
+            // Flatten and deduplicate affected stops
+            const flattenedStops = affected.flat().filter(Boolean); // Remove any null/undefined entries
+
+            setAffectedStops(
+                Array.from(
+                    new Map(
+                        flattenedStops.map(item => [item.stop, item])
+                    ).values()
+                )
+            );
+
+        } catch (error) {
+            console.error('Error fetching affected stops:', error);
+            setAffectedStopsError('Failed to load affected stops information');
+        } finally {
+            setAffectedStopsLoading(false);
+        }
+    };
+
+    // Helper function to extract landmarks
+    const extractLandmarks = (incident) => {
+        const lang = language === 'en' ? 'en' : 'cn';
+        return {
+            near: incident?.landmarks?.near?.[lang] ||
+                incident?.landmarks?.['M']?.near?.['M']?.[lang]?.['S'] || null,
+            between: incident?.landmarks?.between?.[lang] ||
+                incident?.landmarks?.['M']?.between?.['M']?.[lang]?.['S'] || null
+        };
+    };
+
+    // Helper function to parse DynamoDB item format
+    const parseDynamoDBItem = (item) => {
+        if (Array.isArray(item)) {
+            return item.map(parseDynamoDBItem);
+        } else if (item && typeof item === 'object') {
+            const keys = Object.keys(item);
+            if (keys.length === 1 && ['S', 'N', 'M', 'L', 'NULL', 'BOOL'].includes(keys[0])) {
+                const key = keys[0];
+                const value = item[key];
+                switch (key) {
+                    case 'S': return value;
+                    case 'N': return Number(value);
+                    case 'BOOL': return Boolean(value);
+                    case 'NULL': return null;
+                    case 'L': return value.map(parseDynamoDBItem);
+                    case 'M':
+                        const map = {};
+                        for (const k in value) {
+                            map[k] = parseDynamoDBItem(value[k]);
+                        }
+                        return map;
+                    default: return value;
+                }
+            } else {
+                const obj = {};
+                for (const k in item) {
+                    obj[k] = parseDynamoDBItem(item[k]);
+                }
+                return obj;
+            }
+        }
+        return item;
+    };
+
+    // Set up affected stops polling
+    useEffect(() => {
+        fetchAffectedStops();
+        affectedStopsInterval.current = setInterval(fetchAffectedStops, 300000); // 5 minutes
+
+        return () => {
+            if (affectedStopsInterval.current) {
+                clearInterval(affectedStopsInterval.current);
+            }
+        };
+    }, [language]);
+
+    // Effects for location and nearby stops
     useEffect(() => {
         if (searchMode === 'nearby' && location) {
             fetchNearbyStops(location.coords);
         }
     }, [searchMode, location]);
 
+    // Effects for route fetching
     useEffect(() => {
         const fetchRoutes = async () => {
             try {
@@ -139,11 +379,11 @@ function AppContent() {
         fetchRoutes();
     }, []);
 
+    // Effects for stop selection
     useEffect(() => {
         if (transitioning && selectedStopId && stops.length > 0) {
             const stopIndex = stops.findIndex(stop => stop.stop === selectedStopId);
             if (stopIndex !== -1) {
-                // Add a small delay to ensure the FlatList is ready
                 setTimeout(() => {
                     scrollToStop(stopIndex);
                 }, 100);
@@ -181,7 +421,6 @@ function AppContent() {
             setLoading(false);
         }
     };
-
     const fetchNearbyStops = async (coords) => {
         try {
             setLoading(true);
@@ -408,7 +647,6 @@ function AppContent() {
             setLoading(false);
         }
     };
-
     const toggleSearchMode = (mode) => {
         setSelectedStopId(null);
         setSearchMode(mode);
@@ -429,22 +667,34 @@ function AppContent() {
         }
     };
 
-    const renderStopItem = useCallback(({ item }) => (
-        <StopItem
-            item={item}
-            isSelected={item.stop === selectedStopId}
-            onPress={handleStopPress}
-            showModal={showModal}
-            hideModal={hideModal}
-            onRoutePress={handleRoutePress}
-        />
-    ), [selectedStopId, handleStopPress, showModal, hideModal, handleRoutePress]);
+    const scrollToStop = useCallback((index) => {
+        if (!listRef.current || !transitioning) return;
 
-    const getItemLayout = useCallback((data, index) => ({
-        length: 100, // Approximate height of each item
-        offset: 190 * index,
-        index,
-    }), []);
+        try {
+            listRef.current.scrollToIndex({
+                index,
+                animated: true,
+                viewPosition: 0.3,
+                viewOffset: 20
+            });
+        } catch (error) {
+            console.warn('Initial scroll failed, retrying with delay');
+            setTimeout(() => {
+                if (listRef.current && transitioning) {
+                    listRef.current.scrollToIndex({
+                        index,
+                        animated: true,
+                        viewPosition: 0.3,
+                        viewOffset: 20
+                    });
+                }
+            }, 100);
+        } finally {
+            setTimeout(() => {
+                setTransitioning(false);
+            }, 500);
+        }
+    }, [transitioning]);
 
     const handleScrollToIndexFailed = useCallback((info) => {
         const wait = new Promise(resolve => setTimeout(resolve, 500));
@@ -458,6 +708,33 @@ function AppContent() {
             }
         });
     }, [transitioning]);
+
+    const getItemLayout = useCallback((data, index) => ({
+        length: 100,
+        offset: 190 * index,
+        index,
+    }), []);
+
+    // Updated renderStopItem with affected stops integration
+    const renderStopItem = useCallback(({ item }) => {
+        // Check if stop is affected by active incidents
+        const affectedStop = affectedStops.find(
+            affected => affected.stop === item.stop
+        );
+
+        return (
+            <StopItem
+                item={item}
+                isSelected={item.stop === selectedStopId}
+                onPress={handleStopPress}
+                showModal={showModal}
+                hideModal={hideModal}
+                onRoutePress={handleRoutePress}
+                isAffected={Boolean(affectedStop)}
+                affectedReason={affectedStop?.reason}
+            />
+        );
+    }, [selectedStopId, affectedStops, handleStopPress, showModal, hideModal, handleRoutePress]);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -628,6 +905,12 @@ function AppContent() {
                                                 item={item}
                                                 routes={nearbyRoutes[item.stop]}
                                                 onRoutePress={handleRoutePress}
+                                                isAffected={Boolean(affectedStops.find(
+                                                    affected => affected.stop === item.stop
+                                                ))}
+                                                affectedReason={affectedStops.find(
+                                                    affected => affected.stop === item.stop
+                                                )?.reason}
                                             />
                                         )}
                                         keyExtractor={(item) => item.stop}
@@ -741,6 +1024,162 @@ const styles = StyleSheet.create({
     },
     searchTypeTextActive: {
         color: '#0066cc',
+        fontWeight: '500',
+    },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    menuButton: {
+        padding: 4,
+        borderRadius: 4,
+        marginLeft: 4
+    },
+    header: {
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+        paddingTop: 8,
+    },
+    headerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    searchTypeButtons: {
+        flexDirection: 'row',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 2,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333333',
+    },
+    settingsModal: {
+        backgroundColor: '#ffffff',
+        zIndex: 1000,
+    },
+    affectedContainer: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#dc2626',
+        borderWidth: 2,
+    },
+    affectedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fee2e2',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+    },
+    affectedText: {
+        color: '#dc2626',
+        fontSize: 12,
+        fontWeight: '500',
+        marginLeft: 4,
+    },
+    affectedReasonContainer: {
+        backgroundColor: '#fff1f2',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 8,
+    },
+    affectedReason: {
+        color: '#dc2626',
+        fontSize: 14,
+        fontStyle: 'italic',
+    },
+    stopListContainer: {
+        flexGrow: 1,
+    },
+    emptyListContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    emptyListText: {
+        fontSize: 16,
+        color: '#666666',
+        textAlign: 'center',
+        marginTop: 8,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#ffffff',
+    },
+    loadingText: {
+        marginTop: 12,
+        color: '#666666',
+        fontSize: 14,
+    },
+    retryButton: {
+        backgroundColor: '#0066cc',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    retryButtonText: {
+        color: '#ffffff',
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    modalOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        padding: 20,
+        width: '90%',
+        maxWidth: 400,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333333',
+    },
+    modalCloseButton: {
+        padding: 4,
+    },
+    settingsButton: {
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: '#f0f7ff',
+    },
+    languageButton: {
+        backgroundColor: '#f0f7ff',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    languageButtonText: {
+        color: '#0066cc',
+        fontSize: 13,
         fontWeight: '500',
     },
 });
